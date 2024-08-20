@@ -9,10 +9,33 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "workspaceContains:**/.collabconfig"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": []
+    "commands": [
+      {
+        "command": "cloud-collaboration.authenticate",
+        "title": "Cloud Collaboration: Authenticate"
+      },
+      {
+        "command": "cloud-collaboration.unauthenticate",
+        "title": "Cloud Collaboration: Unauthenticate"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "cloud-collaboration.authenticate",
+          "when": "!cloud-collaboration.authenticated"
+        },
+        {
+          "command": "cloud-collaboration.unauthenticate",
+          "when": "cloud-collaboration.authenticated"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
