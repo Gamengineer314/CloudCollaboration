@@ -14,6 +14,24 @@ You will also need a Google account so the extension can access your Google Driv
 - Connect to a project : open a folder with only a .collabconfig file, open the .collabconfig file and press on "Connect" (or run the "Cloud Collaboration: Connect" command). This will load the project and either join the Live Share session of another participant, or create a new one if needed.
 - Disconnect : open the .collabconfig file and press on "Disconnect" (or run the "Cloud Collaboration: Disconnect" command). This will exit the Live Share session, transfer it to another participant if you were the host, and unload the project.
 
+
+## Setup (for developers)
+- Install Node packages used in the project : 
+    ```bash
+    npm i
+    ```
+- Create a new project in the [Google Cloud Console](https://console.cloud.google.com/projectcreate).
+- Go to "APIs & Services" -> "Enabled APIs & services" -> "ENABLE APIS AND SERVICES" and enable "Google Drive API" and "Google Picker API".
+- Go to "APIs & Services" -> "OAuth consent screen" and setup a consent screen with scopes "drive.file".
+- Go to "APIs & Services" -> "Credentials" -> "CREATE CREDENTIALS" and create an API key and a web application OAuth client ID. Add "http://localhost:31415" and "http://127.0.0.1:31415" to "Authorized JavaScript origins" and "Authorized redirect URIs".
+- Create a new file `src/credentials.ts` containing :
+    ```ts
+    export const CLIENT_ID = "<YOUR_CLIENT_ID>";
+    export const CLIENT_SECRET = "<YOUR_CLIENT_SECRET>";
+    export const API_KEY = "<YOUR_API_KEY>";
+    ```
+    Replace `<YOUR_CLIENT_ID>`, `<YOUR_CLIENT_SECRET>` and `<YOUR_API_KEY>` with the credentials you created.
+
 ## To do
 - Google picker
 - Live Share API
