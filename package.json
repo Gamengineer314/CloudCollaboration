@@ -10,7 +10,7 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:**/.collabconfig"
+    "*"
   ],
   "main": "./dist/extension.js",
   "contributes": {
