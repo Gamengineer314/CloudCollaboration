@@ -34,7 +34,6 @@ You will also need a Google account so the extension can access your Google Driv
     Replace `<YOUR_CLIENT_ID>`, `<YOUR_CLIENT_SECRET>`, `<YOUR_API_KEY>` and `<YOUR_PROJECT_NUMBER>` by the credentials you created (you can find the project number in "IAM & Admin" -> "Settings").
 
 ## To do
-- Google picker
 - Live Share API
 - Create and join project commands
 - Loading and unloading of project files

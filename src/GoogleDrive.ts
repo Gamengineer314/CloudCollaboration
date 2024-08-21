@@ -68,7 +68,8 @@ export class GoogleDrive {
         GoogleDrive.server?.close();
         GoogleDrive.server = createServer(async (request, response) => {
             // Ignore other calls (ex: icon)
-            if (!request.url || request.url.length > 1) {
+            if (!request.url || request.url[1] !== "?") {
+                response.end("");
                 return;
             }
 
@@ -134,7 +135,7 @@ export class GoogleDrive {
     /**
      * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
     **/
-    public async pickProject(callback: (id: string) => any ) : Promise<void> {
+    public async pickProject(callback: (filesID: string, indexID: string) => any ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
         GoogleDrive.server = createServer(async (request, response) => {
@@ -149,17 +150,22 @@ export class GoogleDrive {
 
             // Prompt response
             else if (request.url.startsWith("/response")) {
-                const id = new URL(request.url, LOCALHOST).searchParams.get("id");
-                if (!id) {
-                    vscode.window.showErrorMessage("Project pick failed : no folder id");
-                    result = "Project pick failed : no folder id";
+                if (request.url === "/response/invalid") {
+                    vscode.window.showErrorMessage("Project pick failed : invalid project");
+                    result = "Project pick failed : invalid project";
                 }
-                else if (id === "null") {
-                    vscode.window.showErrorMessage("Pick failed : canceled");
+                else if (request.url === "/response/canceled") {
+                    vscode.window.showErrorMessage("Project pick failed : canceled");
                     result = "Project pick failed : canceled";
                 }
                 else {
-                    callback(id);
+                    const params = new URL(request.url, LOCALHOST).searchParams;
+                    const files = params.get("files");
+                    const index = params.get("index");
+                    if (!files || !index) {
+                        return;
+                    }
+                    callback(files, index);
                     result = "Project pick succeeded. You can close this tab and go back to VSCode.";
                 }
                 response.end("");
@@ -184,22 +190,25 @@ export class GoogleDrive {
         });
     }
 
+
+    /**
+     * @brief HTML to display the Google Picker and send back its response 
+    **/
     private async getPickerHTML() : Promise<string> {
-        return `
-<!DOCTYPE html>
+        return `<!DOCTYPE html>
 <html>
 <body>
 <script type="text/javascript">
     function createPicker() {
         const view = new google.picker.DocsView()
-            .setIncludeFolders(true) 
-            .setMimeTypes("application/vnd.google-apps.folder")
-            .setSelectFolderEnabled(true);
+            .setMimeTypes("application/octet-stream")
+            .setQuery("*.collabfiles | *.collabindex");
         const picker = new google.picker.PickerBuilder()
             .addView(view)
-            .setTitle("Select a project")
+            .setTitle("Select a project (both .collabfiles and .collabindex files)")
             .setCallback(pickerCallback)
             .enableFeature(google.picker.Feature.NAV_HIDDEN)
+            .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
             .setDeveloperKey("${API_KEY}")
             .setAppId("${PROJECT_NUMBER}")
             .setOAuthToken("${(await this.auth.getAccessToken()).token}")
@@ -208,8 +217,20 @@ export class GoogleDrive {
     }
 
     async function pickerCallback(data) {
-        if (data.action == google.picker.Action.PICKED || data.action == google.picker.Action.CANCEL) {
-            await fetch("${LOCALHOST}/response?id=" + (data.action == google.picker.Action.PICKED ? data.docs[0].id : null));
+        if (data.action == google.picker.Action.PICKED) {
+            if (data.docs.length === 2 && (
+                (data.docs[0].name.endsWith(".collabfiles") && data.docs[1].name.endsWith(".collabindex")) || 
+                (data.docs[0].name.endsWith(".collabindex") && data.docs[1].name.endsWith(".collabfiles"))
+            )) {
+                await fetch("${LOCALHOST}/response?files=" + data.docs[0].id + "&index=" + data.docs[1].id);
+            }
+            else {
+                await fetch("${LOCALHOST}/response/invalid");
+            }
+            window.location.replace("${LOCALHOST}/result");
+        }
+        else if (data.action == google.picker.Action.CANCEL) {
+            await fetch("${LOCALHOST}/response/canceled");
             window.location.replace("${LOCALHOST}/result");
         }
     }
