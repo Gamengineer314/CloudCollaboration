@@ -12,7 +12,7 @@ export async function activate(_context: vscode.ExtensionContext) {
 	// Custom contexts for 'when' clauses
 	vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", false);
 
-    // Static initializers
+    // Activate classes
     await GoogleDrive.activate();
 
 	// Register commands
@@ -25,7 +25,8 @@ export async function activate(_context: vscode.ExtensionContext) {
 
 // Function called when the extension is deactivated
 export function deactivate() {
-
+    // Deactivate classes
+    GoogleDrive.deactivate();
 }
 
 
