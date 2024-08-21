@@ -29,8 +29,9 @@ You will also need a Google account so the extension can access your Google Driv
     export const CLIENT_ID = "<YOUR_CLIENT_ID>";
     export const CLIENT_SECRET = "<YOUR_CLIENT_SECRET>";
     export const API_KEY = "<YOUR_API_KEY>";
+    export const PROJECT_NUMBER = "<YOUR_PROJECT_NUMBER>";
     ```
-    Replace `<YOUR_CLIENT_ID>`, `<YOUR_CLIENT_SECRET>` and `<YOUR_API_KEY>` with the credentials you created.
+    Replace `<YOUR_CLIENT_ID>`, `<YOUR_CLIENT_SECRET>`, `<YOUR_API_KEY>` and `<YOUR_PROJECT_NUMBER>` by the credentials you created (you can find the project number in "IAM & Admin" -> "Settings").
 
 ## To do
 - Google picker

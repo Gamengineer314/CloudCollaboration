@@ -35,14 +35,14 @@ export function deactivate() {
  * @param callback Callback to wrap
  * @returns Wrapped callback
 **/
-function commandCallback(callback: () => void | Promise<void>) : () => Promise<void> {
+function commandCallback(callback: () => any) : () => Promise<void> {
     return async () => {
         try {
             await callback();
         }
         catch (error : any) {
             vscode.window.showErrorMessage(error.message);
-            console.error(error);
+            console.error("Error : " + error);
         }
     };
 }

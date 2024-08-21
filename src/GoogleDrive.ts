@@ -2,11 +2,11 @@ import * as vscode from "vscode";
 import { Auth, drive_v3 } from "googleapis";
 import { Server, createServer } from "http";
 import { context } from "./extension";
-import { CLIENT_ID, CLIENT_SECRET, API_KEY } from "./credentials";
+import { CLIENT_ID, CLIENT_SECRET, API_KEY, PROJECT_NUMBER } from "./credentials";
 
 
-const REDIRECT_PORT = 31415;
-const REDIRECT = "http://localhost:" + REDIRECT_PORT;
+const PORT = 31415;
+const LOCALHOST = "http://localhost:" + PORT;
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
 
 
@@ -18,10 +18,12 @@ export class GoogleDrive {
     private static server : Server | undefined; // Currently running localhost server
 
 
+    private auth : Auth.OAuth2Client;
     private authDrive : drive_v3.Drive; // For access to user files
     private keyDrive : drive_v3.Drive; // For access to public files
 
     private constructor(auth: Auth.OAuth2Client) {
+        this.auth = auth;
         this.authDrive = new drive_v3.Drive({ auth: auth });
         this.keyDrive = new drive_v3.Drive({ auth: API_KEY });
     }
@@ -34,7 +36,7 @@ export class GoogleDrive {
         // Used stored refresh token if available
         const token = await context.secrets.get("googleRefreshToken");
         if (token) {
-            const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT);
+            const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
             auth.setCredentials({ refresh_token: token });
             GoogleDrive.instance = new GoogleDrive(auth);
             vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", true);
@@ -55,50 +57,45 @@ export class GoogleDrive {
      * @brief Authenticate the user to Google Drive
     **/
     public static authenticate() : void {
-        // Already authenticated
-        if (GoogleDrive.instance) {
+        if (GoogleDrive.instance) { // Already authenticated
             vscode.window.showErrorMessage("Already authenticated");
             return;
         }
 
         // Open prompt to authenticate and listen to localhost for redirection with code in URL parameters
-        const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT);
+        const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
         const randomState = Math.random().toString(36).substring(2);
         GoogleDrive.server?.close();
         GoogleDrive.server = createServer(async (request, response) => {
+            // Ignore other calls (ex: icon)
+            if (!request.url || request.url.length > 1) {
+                return;
+            }
+
             // Redirected with code
-            if (request.url) {
-                const url = new URL(request.url, REDIRECT);
-                if (url.pathname.length > 1) { // Ignore other calls (ex: icon)
-                    return;
-                }
-                const code = url.searchParams.get("code");
-                const state = url.searchParams.get("state");
-                if (code && state === randomState) {
-                    // Get refresh token from code
-                    auth.getToken(code, (error, tokens) => {
-                        if (error || !tokens || !tokens.refresh_token) {
-                            vscode.window.showErrorMessage("Authentication failed : " + (error ? error.message : "no refresh token"));
-                            response.end("Authentication failed : " + (error ? error.message : "no refresh token"));
-                        }
-                        else {
-                            auth.setCredentials(tokens);
-                            context.secrets.store("googleRefreshToken", tokens.refresh_token);
-                            GoogleDrive.instance = new GoogleDrive(auth);
-                            vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", true);
-                            vscode.window.showInformationMessage("Authenticated to Google Drive");
-                            response.end("Authentication succeeded. You can close this tab and go back to VSCode.");
-                        }
-                    });
-                }
-                else {
-                    vscode.window.showErrorMessage("Authentication failed. Please try again.");
-                    response.end("Authentication failed. Please try again.");
-                }
+            const url = new URL(request.url, LOCALHOST);
+            const code = url.searchParams.get("code");
+            const state = url.searchParams.get("state");
+            if (code && state === randomState) {
+                // Get refresh token from code
+                auth.getToken(code, (error, tokens) => {
+                    if (error || !tokens || !tokens.refresh_token) {
+                        vscode.window.showErrorMessage("Authentication failed : " + (error ? error.message : "no refresh token"));
+                        response.end("Authentication failed : " + (error ? error.message : "no refresh token"));
+                    }
+                    else {
+                        auth.setCredentials(tokens);
+                        context.secrets.store("googleRefreshToken", tokens.refresh_token);
+                        GoogleDrive.instance = new GoogleDrive(auth);
+                        vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", true);
+                        vscode.window.showInformationMessage("Authenticated to Google Drive");
+                        response.end("Authentication succeeded. You can close this tab and go back to VSCode.");
+                    }
+                });
             }
             else {
-                vscode.window.showErrorMessage("Authentication failed : no URL");
-                response.end("Authentication failed : no URL");
+                vscode.window.showErrorMessage("Authentication failed. Please try again.");
+                response.end("Authentication failed. Please try again.");
             }
             GoogleDrive.server?.close();
             GoogleDrive.server = undefined;
@@ -111,7 +108,7 @@ export class GoogleDrive {
             state: randomState
         });
 
-        GoogleDrive.server.listen(REDIRECT_PORT, async () => {
+        GoogleDrive.server.listen(PORT, async () => {
             // Open prompt
             const opened = await vscode.env.openExternal(vscode.Uri.parse(url));
             if (!opened) {
@@ -131,6 +128,95 @@ export class GoogleDrive {
         GoogleDrive.instance = undefined;
         vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", false);
         vscode.window.showInformationMessage("Unauthenticated from Google Drive");
+    }
+
+
+    /**
+     * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
+    **/
+    public async pickProject(callback: (id: string) => any ) : Promise<void> {
+        let result = "";
+        GoogleDrive.server?.close();
+        GoogleDrive.server = createServer(async (request, response) => {
+            if (!request.url) {
+                return;
+            }
+            
+            // Prompt request
+            if (request.url === "/") {
+                response.end(await this.getPickerHTML());
+            }
+
+            // Prompt response
+            else if (request.url.startsWith("/response")) {
+                const id = new URL(request.url, LOCALHOST).searchParams.get("id");
+                if (!id) {
+                    vscode.window.showErrorMessage("Project pick failed : no folder id");
+                    result = "Project pick failed : no folder id";
+                }
+                else if (id === "null") {
+                    vscode.window.showErrorMessage("Pick failed : canceled");
+                    result = "Project pick failed : canceled";
+                }
+                else {
+                    callback(id);
+                    result = "Project pick succeeded. You can close this tab and go back to VSCode.";
+                }
+                response.end("");
+            }
+
+            // Result message
+            else if (request.url === "/result") {
+                response.end(result);
+                GoogleDrive.server?.close();
+                GoogleDrive.server = undefined;
+            }
+        });
+
+        GoogleDrive.server.listen(PORT, async () => {
+            // Open prompt
+            const opened = await vscode.env.openExternal(vscode.Uri.parse(LOCALHOST));
+            if (!opened) {
+                vscode.window.showErrorMessage("Project pick failed : prompt not opened");
+                GoogleDrive.server?.close();
+                GoogleDrive.server = undefined;
+            }
+        });
+    }
+
+    private async getPickerHTML() : Promise<string> {
+        return `
+<!DOCTYPE html>
+<html>
+<body>
+<script type="text/javascript">
+    function createPicker() {
+        const view = new google.picker.DocsView()
+            .setIncludeFolders(true) 
+            .setMimeTypes("application/vnd.google-apps.folder")
+            .setSelectFolderEnabled(true);
+        const picker = new google.picker.PickerBuilder()
+            .addView(view)
+            .setTitle("Select a project")
+            .setCallback(pickerCallback)
+            .enableFeature(google.picker.Feature.NAV_HIDDEN)
+            .setDeveloperKey("${API_KEY}")
+            .setAppId("${PROJECT_NUMBER}")
+            .setOAuthToken("${(await this.auth.getAccessToken()).token}")
+            .build();
+        picker.setVisible(true);
+    }
+
+    async function pickerCallback(data) {
+        if (data.action == google.picker.Action.PICKED || data.action == google.picker.Action.CANCEL) {
+            await fetch("${LOCALHOST}/response?id=" + (data.action == google.picker.Action.PICKED ? data.docs[0].id : null));
+            window.location.replace("${LOCALHOST}/result");
+        }
+    }
+</script>
+<script async defer src="https://apis.google.com/js/api.js" onload="gapi.load('client:picker', createPicker)"></script>
+</body>
+</html>`;
     }
     
 }
