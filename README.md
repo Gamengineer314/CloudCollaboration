@@ -35,13 +35,12 @@ You will also need a Google account so the extension can access your Google Driv
 
 ## To do
 - Live Share API
-- Create and join project commands
+- Connect and disconnect commands
 - Loading and unloading of project files
 - Frequent backups (on Google Drive and also locally to not load the entire project every time)
 - Transfer Live Share session if host disconnects
-- Option to delete a project
-- Option to copy a project
-- Custom editor for .collabconfig file (project name, Connect and Disconnect button and other settings)
+- Option to copy project files (without .collabconfig and .collablaunch) to another folder
+- Custom editor for .collabconfig and .collablaunch files (project name, Connect and Disconnect button and other settings)
 - Sharing settings in .collabconfig file (add participants manually or allow anyone with the id to join)
 - Ignore settings (similar to .gitignore for git) in .collabconfig file
 - Publish the extension on the marketplace
