@@ -135,7 +135,7 @@ export class GoogleDrive {
     /**
      * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
     **/
-    public async pickProject(callback: (filesID: string, indexID: string) => any ) : Promise<void> {
+    public async pickProject(callback: (filesID: string, indexID: string, urlID: string) => any ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
         GoogleDrive.server = createServer(async (request, response) => {
@@ -152,7 +152,7 @@ export class GoogleDrive {
             else if (request.url.startsWith("/response")) {
                 if (request.url === "/response/invalid") {
                     vscode.window.showErrorMessage("Project pick failed : invalid project");
-                    result = "Project pick failed : invalid project";
+                    result = "Project pick failed : invalid project. Please select the .collabfiles, the .collabindex and the .collaburl files corresponding to the project you want to join.";
                 }
                 else if (request.url === "/response/canceled") {
                     vscode.window.showErrorMessage("Project pick failed : canceled");
@@ -162,10 +162,11 @@ export class GoogleDrive {
                     const params = new URL(request.url, LOCALHOST).searchParams;
                     const files = params.get("files");
                     const index = params.get("index");
-                    if (!files || !index) {
+                    const url = params.get("url");
+                    if (!files || !index || !url) {
                         return;
                     }
-                    callback(files, index);
+                    callback(files, index, url);
                     result = "Project pick succeeded. You can close this tab and go back to VSCode.";
                 }
                 response.end("");
@@ -201,11 +202,11 @@ export class GoogleDrive {
 <script type="text/javascript">
     function createPicker() {
         const view = new google.picker.DocsView()
-            .setMimeTypes("application/octet-stream")
-            .setQuery("*.collabfiles | *.collabindex");
+            .setMimeTypes("application/octet-stream,text/plain")
+            .setQuery("*.collabfiles | *.collabindex | *.collaburl");
         const picker = new google.picker.PickerBuilder()
             .addView(view)
-            .setTitle("Select a project (both .collabfiles and .collabindex files)")
+            .setTitle("Select a project (.collabfiles, .collabindex and .collaburl files)")
             .setCallback(pickerCallback)
             .enableFeature(google.picker.Feature.NAV_HIDDEN)
             .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
@@ -218,11 +219,12 @@ export class GoogleDrive {
 
     async function pickerCallback(data) {
         if (data.action == google.picker.Action.PICKED) {
-            if (data.docs.length === 2 && (
-                (data.docs[0].name.endsWith(".collabfiles") && data.docs[1].name.endsWith(".collabindex")) || 
-                (data.docs[0].name.endsWith(".collabindex") && data.docs[1].name.endsWith(".collabfiles"))
-            )) {
-                await fetch("${LOCALHOST}/response?files=" + data.docs[0].id + "&index=" + data.docs[1].id);
+            const extensions = data.docs.map(doc => doc.name.substring(doc.name.lastIndexOf(".")));
+            if (extensions.length === 3 && extensions.includes(".collabfiles") && extensions.includes(".collabindex") && extensions.includes(".collaburl")) {
+                const files = data.docs[extensions.indexOf(".collabfiles")];
+                const index = data.docs[extensions.indexOf(".collabindex")];
+                const url = data.docs[extensions.indexOf(".collaburl")];
+                await fetch("${LOCALHOST}/response?files=" + files.id + "&index=" + index.id + "&url=" + url.id);
             }
             else {
                 await fetch("${LOCALHOST}/response/invalid");
