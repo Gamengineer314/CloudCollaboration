@@ -10,9 +10,9 @@ You will also need a Google account so the extension can access your Google Driv
 
 ## Usage
 - Authenticate : press Ctrl + Shift + p, then run the "Cloud Collaboration: Authenticate" command
-- Create or join a project : open an empty folder, press Ctrl + Shift + p, then run the "Cloud Collaboration: Create project" or "Cloud Collaboration: Join project" command. This will create a .collabconfig file, which is a project configuration file.
-- Connect to a project : open a folder with only a .collabconfig file, open the .collabconfig file and press on "Connect" (or run the "Cloud Collaboration: Connect" command). This will load the project and either join the Live Share session of another participant, or create a new one if needed.
-- Disconnect : open the .collabconfig file and press on "Disconnect" (or run the "Cloud Collaboration: Disconnect" command). This will exit the Live Share session, transfer it to another participant if you were the host, and unload the project.
+- Create or join a project : open an empty folder, press Ctrl + Shift + p, then run the "Cloud Collaboration: Create project" or "Cloud Collaboration: Join project" command. This will create a .collablaunch file, which contains information required to connect to the project.
+- Connect to a project : open a folder with only a .collablaunch file, open the .collablaunch file and press on "Connect" (or run the "Cloud Collaboration: Connect" command). This will load the project and either join the Live Share session of another participant, or create a new one if needed.
+- Disconnect : open the .collablaunch file and press on "Disconnect" (or run the "Cloud Collaboration: Disconnect" command). This will exit the Live Share session, transfer it to another participant if you were the host, and unload the project.
 
 
 ## Setup (for developers)

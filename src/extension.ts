@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { GoogleDrive } from "./GoogleDrive";
+import { Project } from "./Project";
 
 
 export let context : vscode.ExtensionContext;
@@ -20,6 +21,8 @@ export async function activate(_context: vscode.ExtensionContext) {
 	context.subscriptions.push(authenticate);
 	const unauthenticate = vscode.commands.registerCommand("cloud-collaboration.unauthenticate", commandCallback(GoogleDrive.unauthenticate));
 	context.subscriptions.push(unauthenticate);
+    const createProject = vscode.commands.registerCommand("cloud-collaboration.createProject", commandCallback(Project.createProject));
+    context.subscriptions.push(createProject);
 }
 
 

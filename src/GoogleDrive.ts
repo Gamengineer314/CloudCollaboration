@@ -241,5 +241,63 @@ export class GoogleDrive {
 </body>
 </html>`;
     }
-    
+
+
+    /**
+     * @brief Create a new project in Google Drive
+     * @param name Name of the project
+     * @returns
+     * filesID: ID of the .collabfiles file, 
+     * indexID: ID of the .collabindex file, 
+     * urlID: ID of the .collaburl file
+    **/
+    public async createProject(name: string) : Promise<{ filesID: string, indexID: string, urlID: string }> {
+        const files = await this.authDrive.files.create({
+            requestBody: {
+                name: name + ".collabfiles",
+                mimeType: "application/octet-stream"
+            },
+            media: {
+                mimeType: "application/octet-stream",
+                body: ""
+            }
+        });
+        if (!files.data.id) {
+            throw new Error("Failed to create .collabfiles file");
+        }
+
+        const index = await this.authDrive.files.create({
+            requestBody: {
+                name: name + ".collabindex",
+                mimeType: "application/octet-stream"
+            },
+            media: {
+                mimeType: "application/octet-stream",
+                body: ""
+            }
+        });
+        if (!index.data.id) {
+            await this.authDrive.files.delete({ fileId: files.data.id });
+            throw new Error("Failed to create .collabindex file");
+        }
+
+        const url = await this.authDrive.files.create({
+            requestBody: {
+                name: name + ".collaburl",
+                mimeType: "text/plain"
+            },
+            media: {
+                mimeType: "text/plain",
+                body: ""
+            }
+        });
+        if (!url.data.id) {
+            await this.authDrive.files.delete({ fileId: files.data.id });
+            await this.authDrive.files.delete({ fileId: index.data.id });
+            throw new Error("Failed to create .collaburl file");
+        }
+
+        return { filesID: files.data.id, indexID: index.data.id, urlID: url.data.id };
+    }
+
 }

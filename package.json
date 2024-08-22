@@ -22,6 +22,10 @@
       {
         "command": "cloud-collaboration.unauthenticate",
         "title": "Cloud Collaboration: Unauthenticate"
+      },
+      {
+        "command": "cloud-collaboration.createProject",
+        "title": "Cloud Collaboration: Create Project"
       }
     ],
     "menus": {
@@ -32,6 +36,10 @@
         },
         {
           "command": "cloud-collaboration.unauthenticate",
+          "when": "cloud-collaboration.authenticated"
+        },
+        {
+          "command": "cloud-collaboration.createProject",
           "when": "cloud-collaboration.authenticated"
         }
       ]
