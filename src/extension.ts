@@ -23,6 +23,10 @@ export async function activate(_context: vscode.ExtensionContext) {
 	context.subscriptions.push(unauthenticate);
     const createProject = vscode.commands.registerCommand("cloud-collaboration.createProject", commandCallback(Project.createProject));
     context.subscriptions.push(createProject);
+    const joinSharedProject = vscode.commands.registerCommand("cloud-collaboration.joinSharedProject", commandCallback(Project.joinSharedProject));
+    context.subscriptions.push(joinSharedProject);
+    const joinPublicProject = vscode.commands.registerCommand("cloud-collaboration.joinPublicProject", commandCallback(Project.joinPublicProject));
+    context.subscriptions.push(joinPublicProject);
 }
 
 

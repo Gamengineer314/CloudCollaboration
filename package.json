@@ -26,6 +26,14 @@
       {
         "command": "cloud-collaboration.createProject",
         "title": "Cloud Collaboration: Create Project"
+      },
+      {
+        "command": "cloud-collaboration.joinSharedProject",
+        "title": "Cloud Collaboration: Join Project (Shared)"
+      },
+      {
+        "command": "cloud-collaboration.joinPublicProject",
+        "title": "Cloud Collaboration: Join Project (Public)"
       }
     ],
     "menus": {
@@ -40,6 +48,14 @@
         },
         {
           "command": "cloud-collaboration.createProject",
+          "when": "cloud-collaboration.authenticated"
+        },
+        {
+          "command": "cloud-collaboration.joinSharedProject",
+          "when": "cloud-collaboration.authenticated"
+        },
+        {
+          "command": "cloud-collaboration.joinPublicProject",
           "when": "cloud-collaboration.authenticated"
         }
       ]

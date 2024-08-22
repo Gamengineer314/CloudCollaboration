@@ -111,6 +111,7 @@ export class GoogleDrive {
 
         GoogleDrive.server.listen(PORT, async () => {
             // Open prompt
+            vscode.window.showInformationMessage("Please authenticate in the page opened in your browser");
             const opened = await vscode.env.openExternal(vscode.Uri.parse(url));
             if (!opened) {
                 vscode.window.showErrorMessage("Authentication failed : prompt not opened");
@@ -135,7 +136,7 @@ export class GoogleDrive {
     /**
      * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
     **/
-    public async pickProject(callback: (filesID: string, indexID: string, urlID: string) => any ) : Promise<void> {
+    public async pickProject(callback: (filesID: string, indexID: string, urlID: string, name: string) => any ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
         GoogleDrive.server = createServer(async (request, response) => {
@@ -163,10 +164,11 @@ export class GoogleDrive {
                     const files = params.get("files");
                     const index = params.get("index");
                     const url = params.get("url");
-                    if (!files || !index || !url) {
+                    const name = params.get("name");
+                    if (!files || !index || !url || !name) {
                         return;
                     }
-                    callback(files, index, url);
+                    callback(files, index, url, name);
                     result = "Project pick succeeded. You can close this tab and go back to VSCode.";
                 }
                 response.end("");
@@ -182,6 +184,7 @@ export class GoogleDrive {
 
         GoogleDrive.server.listen(PORT, async () => {
             // Open prompt
+            vscode.window.showInformationMessage("Please pick a project in the page opened in your browser");
             const opened = await vscode.env.openExternal(vscode.Uri.parse(LOCALHOST));
             if (!opened) {
                 vscode.window.showErrorMessage("Project pick failed : prompt not opened");
@@ -219,12 +222,13 @@ export class GoogleDrive {
 
     async function pickerCallback(data) {
         if (data.action == google.picker.Action.PICKED) {
-            const extensions = data.docs.map(doc => doc.name.substring(doc.name.lastIndexOf(".")));
-            if (extensions.length === 3 && extensions.includes(".collabfiles") && extensions.includes(".collabindex") && extensions.includes(".collaburl")) {
-                const files = data.docs[extensions.indexOf(".collabfiles")];
-                const index = data.docs[extensions.indexOf(".collabindex")];
-                const url = data.docs[extensions.indexOf(".collaburl")];
-                await fetch("${LOCALHOST}/response?files=" + files.id + "&index=" + index.id + "&url=" + url.id);
+            const fileNames = data.docs.map(doc => doc.name);
+            const name = fileNames[0].substring(0, fileNames[0].lastIndexOf("."));
+            if (fileNames.length === 3 && fileNames.includes(name + ".collabfiles") && fileNames.includes(name + ".collabindex") && fileNames.includes(name + ".collaburl")) {
+                const files = data.docs[fileNames.indexOf(name + ".collabfiles")];
+                const index = data.docs[fileNames.indexOf(name + ".collabindex")];
+                const url = data.docs[fileNames.indexOf(name + ".collaburl")];
+                await fetch("${LOCALHOST}/response?files=" + files.id + "&index=" + index.id + "&url=" + url.id + "&name=" + name);
             }
             else {
                 await fetch("${LOCALHOST}/response/invalid");
@@ -260,7 +264,8 @@ export class GoogleDrive {
             media: {
                 mimeType: "application/octet-stream",
                 body: ""
-            }
+            },
+            fields: "id"
         });
         if (!files.data.id) {
             throw new Error("Failed to create .collabfiles file");
@@ -274,7 +279,8 @@ export class GoogleDrive {
             media: {
                 mimeType: "application/octet-stream",
                 body: ""
-            }
+            },
+            fields: "id"
         });
         if (!index.data.id) {
             await this.authDrive.files.delete({ fileId: files.data.id });
@@ -289,7 +295,8 @@ export class GoogleDrive {
             media: {
                 mimeType: "text/plain",
                 body: ""
-            }
+            },
+            fields: "id"
         });
         if (!url.data.id) {
             await this.authDrive.files.delete({ fileId: files.data.id });
@@ -300,4 +307,32 @@ export class GoogleDrive {
         return { filesID: files.data.id, indexID: index.data.id, urlID: url.data.id };
     }
 
+
+    /**
+     * @brief Check if a publicly shared project with given IDs is valid
+     * @param filesID ID of the .collabfiles file
+     * @param indexID ID of the .collabindex file
+     * @param urlID ID of the .collaburl file
+     * @returns Name of the project if it is valid, empty string otherwise
+    **/
+    public async checkPublicProject(filesID: string, indexID: string, urlID: string) : Promise<string> {
+        // Get and check file names
+        try { // Invalid project if files.get throws error
+            const filesName = await this.keyDrive.files.get({ fileId: filesID, fields: "name" });
+            const indexName = await this.keyDrive.files.get({ fileId: indexID, fields: "name" });
+            const urlName = await this.keyDrive.files.get({ fileId: urlID, fields: "name" });
+            if (!filesName.data.name || !indexName.data.name || !urlName.data.name) {
+                return "";
+            }
+            const name = filesName.data.name.substring(0, filesName.data.name.lastIndexOf("."));
+            if (indexName.data.name !== name + ".collabindex" || urlName.data.name !== name + ".collaburl") {
+                return "";
+            }
+            return name;
+        }
+        catch {
+            return "";
+        }
+    }
+    
 }
