@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { GoogleDrive } from "./GoogleDrive";
 import { Project } from "./Project";
+import { LiveShare } from "./LiveShare";
 
 
 export let context : vscode.ExtensionContext;
@@ -12,9 +13,13 @@ export async function activate(_context: vscode.ExtensionContext) {
 
 	// Custom contexts for 'when' clauses
 	vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", false);
+    vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
+    vscode.commands.executeCommand("setContext", "cloud-collaboration.liveShareAvailable", false);
 
     // Activate classes
+    await LiveShare.activate();
     await GoogleDrive.activate();
+    await Project.activate();
 
 	// Register commands
 	const authenticate = vscode.commands.registerCommand("cloud-collaboration.authenticate", commandCallback(GoogleDrive.authenticate));
@@ -23,10 +28,12 @@ export async function activate(_context: vscode.ExtensionContext) {
 	context.subscriptions.push(unauthenticate);
     const createProject = vscode.commands.registerCommand("cloud-collaboration.createProject", commandCallback(Project.createProject));
     context.subscriptions.push(createProject);
-    const joinSharedProject = vscode.commands.registerCommand("cloud-collaboration.joinSharedProject", commandCallback(Project.joinSharedProject));
+    const joinSharedProject = vscode.commands.registerCommand("cloud-collaboration.joinProject", commandCallback(Project.joinProject));
     context.subscriptions.push(joinSharedProject);
-    const joinPublicProject = vscode.commands.registerCommand("cloud-collaboration.joinPublicProject", commandCallback(Project.joinPublicProject));
-    context.subscriptions.push(joinPublicProject);
+    const connect = vscode.commands.registerCommand("cloud-collaboration.connect", commandCallback(Project.connect));
+    context.subscriptions.push(connect);
+    const disconnect = vscode.commands.registerCommand("cloud-collaboration.disconnect", commandCallback(Project.disconnect));
+    context.subscriptions.push(disconnect);
 }
 
 

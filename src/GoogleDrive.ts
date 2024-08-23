@@ -19,13 +19,11 @@ export class GoogleDrive {
 
 
     private auth : Auth.OAuth2Client;
-    private authDrive : drive_v3.Drive; // For access to user files
-    private keyDrive : drive_v3.Drive; // For access to public files
+    private drive : drive_v3.Drive;
 
     private constructor(auth: Auth.OAuth2Client) {
         this.auth = auth;
-        this.authDrive = new drive_v3.Drive({ auth: auth });
-        this.keyDrive = new drive_v3.Drive({ auth: API_KEY });
+        this.drive = new drive_v3.Drive({ auth: auth });
     }
 
 
@@ -40,7 +38,6 @@ export class GoogleDrive {
             auth.setCredentials({ refresh_token: token });
             GoogleDrive.instance = new GoogleDrive(auth);
             vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", true);
-            return;
         }
     }
 
@@ -256,7 +253,7 @@ export class GoogleDrive {
      * urlID: ID of the .collaburl file
     **/
     public async createProject(name: string) : Promise<{ filesID: string, indexID: string, urlID: string }> {
-        const files = await this.authDrive.files.create({
+        const files = await this.drive.files.create({
             requestBody: {
                 name: name + ".collabfiles",
                 mimeType: "application/octet-stream"
@@ -271,7 +268,7 @@ export class GoogleDrive {
             throw new Error("Failed to create .collabfiles file");
         }
 
-        const index = await this.authDrive.files.create({
+        const index = await this.drive.files.create({
             requestBody: {
                 name: name + ".collabindex",
                 mimeType: "application/octet-stream"
@@ -283,11 +280,11 @@ export class GoogleDrive {
             fields: "id"
         });
         if (!index.data.id) {
-            await this.authDrive.files.delete({ fileId: files.data.id });
+            await this.drive.files.delete({ fileId: files.data.id });
             throw new Error("Failed to create .collabindex file");
         }
 
-        const url = await this.authDrive.files.create({
+        const url = await this.drive.files.create({
             requestBody: {
                 name: name + ".collaburl",
                 mimeType: "text/plain"
@@ -299,8 +296,8 @@ export class GoogleDrive {
             fields: "id"
         });
         if (!url.data.id) {
-            await this.authDrive.files.delete({ fileId: files.data.id });
-            await this.authDrive.files.delete({ fileId: index.data.id });
+            await this.drive.files.delete({ fileId: files.data.id });
+            await this.drive.files.delete({ fileId: index.data.id });
             throw new Error("Failed to create .collaburl file");
         }
 
@@ -309,30 +306,29 @@ export class GoogleDrive {
 
 
     /**
-     * @brief Check if a publicly shared project with given IDs is valid
-     * @param filesID ID of the .collabfiles file
-     * @param indexID ID of the .collabindex file
+     * @brief Get the URL of the current Live Share session for a project
      * @param urlID ID of the .collaburl file
-     * @returns Name of the project if it is valid, empty string otherwise
+     * @returns URL of the session if there is one, empty string otherwise
     **/
-    public async checkPublicProject(filesID: string, indexID: string, urlID: string) : Promise<string> {
-        // Get and check file names
-        try { // Invalid project if files.get throws error
-            const filesName = await this.keyDrive.files.get({ fileId: filesID, fields: "name" });
-            const indexName = await this.keyDrive.files.get({ fileId: indexID, fields: "name" });
-            const urlName = await this.keyDrive.files.get({ fileId: urlID, fields: "name" });
-            if (!filesName.data.name || !indexName.data.name || !urlName.data.name) {
-                return "";
-            }
-            const name = filesName.data.name.substring(0, filesName.data.name.lastIndexOf("."));
-            if (indexName.data.name !== name + ".collabindex" || urlName.data.name !== name + ".collaburl") {
-                return "";
-            }
-            return name;
-        }
-        catch {
-            return "";
-        }
+    public async getLiveShareURL(urlID: string) : Promise<string> {
+        const url = await this.drive.files.get({ fileId: urlID, alt: "media" });
+        return (url.data as string).substring(1);
     }
-    
+
+
+    /**
+     * @brief Set the URL of the current Live Share session for a project
+     * @param urlID ID of the .collaburl file
+     * @param url URL of the session, empty string to end the session
+    **/
+    public async setLiveShareURL(urlID: string, url: string) : Promise<void> {
+        await this.drive.files.update({
+            fileId: urlID,
+            media: {
+                mimeType: "text/plain",
+                body: " " + url
+            }
+        });
+    }
+
 }

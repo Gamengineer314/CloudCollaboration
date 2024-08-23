@@ -34,11 +34,10 @@ You will also need a Google account so the extension can access your Google Driv
     Replace `<YOUR_CLIENT_ID>`, `<YOUR_CLIENT_SECRET>`, `<YOUR_API_KEY>` and `<YOUR_PROJECT_NUMBER>` by the credentials you created (you can find the project number in "IAM & Admin" -> "Settings").
 
 ## To do
-- Live Share API
-- Connect and disconnect commands
 - Loading and unloading of project files
 - Frequent backups (on Google Drive and also locally to not load the entire project every time)
-- Transfer Live Share session if host disconnects
+- Merge Live Share sessions if two are started at the same time
+- Transfer Live Share session if host disconnects or crashes
 - Option to copy project files (without .collabconfig and .collablaunch) to another folder
 - Custom editor for .collabconfig and .collablaunch files (project name, Connect and Disconnect button and other settings)
 - Sharing settings in .collabconfig file (add participants manually or allow anyone with the id to join)

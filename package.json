@@ -28,12 +28,16 @@
         "title": "Cloud Collaboration: Create Project"
       },
       {
-        "command": "cloud-collaboration.joinSharedProject",
+        "command": "cloud-collaboration.joinProject",
         "title": "Cloud Collaboration: Join Project (Shared)"
       },
       {
-        "command": "cloud-collaboration.joinPublicProject",
-        "title": "Cloud Collaboration: Join Project (Public)"
+        "command": "cloud-collaboration.connect",
+        "title": "Cloud Collaboration: Connect"
+      },
+      {
+        "command": "cloud-collaboration.disconnect",
+        "title": "Cloud Collaboration: Disconnect"
       }
     ],
     "menus": {
@@ -44,19 +48,23 @@
         },
         {
           "command": "cloud-collaboration.unauthenticate",
-          "when": "cloud-collaboration.authenticated"
+          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected"
         },
         {
           "command": "cloud-collaboration.createProject",
-          "when": "cloud-collaboration.authenticated"
+          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected"
         },
         {
-          "command": "cloud-collaboration.joinSharedProject",
-          "when": "cloud-collaboration.authenticated"
+          "command": "cloud-collaboration.joinProject",
+          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected"
         },
         {
-          "command": "cloud-collaboration.joinPublicProject",
-          "when": "cloud-collaboration.authenticated"
+          "command": "cloud-collaboration.connect",
+          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && cloud-collaboration.liveShareAvailable"
+        },
+        {
+          "command": "cloud-collaboration.disconnect",
+          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected"
         }
       ]
     }

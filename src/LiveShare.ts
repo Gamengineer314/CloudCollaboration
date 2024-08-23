@@ -16,7 +16,7 @@ export class LiveShare {
 
 
     /**
-     * @brief Initialize Live Share class
+     * @brief Activate Live Share class
     **/
     public static async activate() : Promise<void> {
         // Check instance
@@ -31,7 +31,7 @@ export class LiveShare {
         }
 
         LiveShare.instance = new LiveShare(liveShare);
-        vscode.commands.executeCommand("setContext", "eplcollab.liveShareAvailable", true);
+        vscode.commands.executeCommand("setContext", "cloud-collaboration.liveShareAvailable", true);
     }
     
     
