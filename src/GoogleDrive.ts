@@ -133,7 +133,7 @@ export class GoogleDrive {
     /**
      * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
     **/
-    public async pickProject(callback: (filesID: string, indexID: string, urlID: string, name: string) => any ) : Promise<void> {
+    public async pickProject(callback: (project: GoogleDriveProject) => any ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
         GoogleDrive.server = createServer(async (request, response) => {
@@ -165,7 +165,11 @@ export class GoogleDrive {
                     if (!files || !index || !url || !name) {
                         return;
                     }
-                    callback(files, index, url, name);
+                    const folder = await this.drive.files.get({ fileId: files, fields: "parents" });
+                    if (!folder.data.parents) {
+                        return;
+                    }
+                    callback(new GoogleDriveProject(folder.data.parents[0], files, index, url, name));
                     result = "Project pick succeeded. You can close this tab and go back to VSCode.";
                 }
                 response.end("");
@@ -252,11 +256,23 @@ export class GoogleDrive {
      * indexID: ID of the .collabindex file, 
      * urlID: ID of the .collaburl file
     **/
-    public async createProject(name: string) : Promise<{ filesID: string, indexID: string, urlID: string }> {
+    public async createProject(name: string) : Promise<GoogleDriveProject> {
+        const folder = await this.drive.files.create({
+            requestBody: {
+                name: name,
+                mimeType: "application/vnd.google-apps.folder"
+            },
+            fields: "id"
+        });
+        if (!folder.data.id) {
+            throw new Error("Failed to create folder");
+        }
+
         const files = await this.drive.files.create({
             requestBody: {
                 name: name + ".collabfiles",
-                mimeType: "application/octet-stream"
+                mimeType: "application/octet-stream",
+                parents: [folder.data.id]
             },
             media: {
                 mimeType: "application/octet-stream",
@@ -265,13 +281,15 @@ export class GoogleDrive {
             fields: "id"
         });
         if (!files.data.id) {
+            await this.drive.files.delete({ fileId: folder.data.id });
             throw new Error("Failed to create .collabfiles file");
         }
 
         const index = await this.drive.files.create({
             requestBody: {
                 name: name + ".collabindex",
-                mimeType: "application/octet-stream"
+                mimeType: "application/octet-stream",
+                parents: [folder.data.id]
             },
             media: {
                 mimeType: "application/octet-stream",
@@ -280,6 +298,7 @@ export class GoogleDrive {
             fields: "id"
         });
         if (!index.data.id) {
+            await this.drive.files.delete({ fileId: folder.data.id });
             await this.drive.files.delete({ fileId: files.data.id });
             throw new Error("Failed to create .collabindex file");
         }
@@ -287,7 +306,8 @@ export class GoogleDrive {
         const url = await this.drive.files.create({
             requestBody: {
                 name: name + ".collaburl",
-                mimeType: "text/plain"
+                mimeType: "text/plain",
+                parents: [folder.data.id]
             },
             media: {
                 mimeType: "text/plain",
@@ -296,12 +316,13 @@ export class GoogleDrive {
             fields: "id"
         });
         if (!url.data.id) {
+            await this.drive.files.delete({ fileId: folder.data.id });
             await this.drive.files.delete({ fileId: files.data.id });
             await this.drive.files.delete({ fileId: index.data.id });
             throw new Error("Failed to create .collaburl file");
         }
 
-        return { filesID: files.data.id, indexID: index.data.id, urlID: url.data.id };
+        return new GoogleDriveProject(folder.data.id, files.data.id, index.data.id, url.data.id, name);
     }
 
 
@@ -331,4 +352,10 @@ export class GoogleDrive {
         });
     }
 
+}
+
+
+
+export class GoogleDriveProject {
+    public constructor(public folderID: string, public filesID: string, public indexID: string, public urlID: string, public name: string) {}
 }

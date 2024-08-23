@@ -29,7 +29,7 @@
       },
       {
         "command": "cloud-collaboration.joinProject",
-        "title": "Cloud Collaboration: Join Project (Shared)"
+        "title": "Cloud Collaboration: Join Project"
       },
       {
         "command": "cloud-collaboration.connect",

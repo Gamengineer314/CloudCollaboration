@@ -10,17 +10,7 @@ export class Project {
     public static get Instance() : Project | undefined { return Project.instance; }
 
 
-    private filesID : string;
-    private indexID : string;
-    private urlID : string;
-    private host : boolean;
-
-    private constructor(filesID: string, indexID: string, urlID: string, host: boolean) {
-        this.filesID = filesID;
-        this.indexID = indexID;
-        this.urlID = urlID;
-        this.host = host;
-    }
+    private constructor(private folderID: string, private filesID: string, private indexID: string, private urlID: string, private host: boolean) {}
 
 
     /**
@@ -30,7 +20,7 @@ export class Project {
         // Restore project state after a restart for joining a Live Share session
         const projectState = context.globalState.get<Project>("projectState");
         if (projectState) {
-            Project.instance = new Project(projectState.filesID, projectState.indexID, projectState.urlID, projectState.host);
+            Project.instance = new Project(projectState.folderID, projectState.filesID, projectState.indexID, projectState.urlID, projectState.host);
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             context.globalState.update("projectState", undefined);
         }
@@ -64,11 +54,11 @@ export class Project {
         if (!GoogleDrive.Instance) {
             throw new Error("Can't create project : not authenticated");
         }
-        const { filesID, indexID, urlID } = await GoogleDrive.Instance.createProject(name);
+        const project = await GoogleDrive.Instance.createProject(name);
         
         // .collablaunch file
         const configUri = vscode.Uri.joinPath(folder, "/.collablaunch");
-        vscode.workspace.fs.writeFile(configUri, new TextEncoder().encode(JSON.stringify({ filesID: filesID, indexID: indexID, urlID: urlID, name: name, key: false }, null, 4)));
+        vscode.workspace.fs.writeFile(configUri, new TextEncoder().encode(JSON.stringify(project, null, 4)));
         vscode.window.showInformationMessage("Project created successfully");
     }
 
@@ -91,10 +81,10 @@ export class Project {
         if (!GoogleDrive.Instance) {
             throw new Error("Can't join project : not authenticated");
         }
-        await GoogleDrive.Instance.pickProject((filesID, indexID, urlID, name) => {
+        await GoogleDrive.Instance.pickProject((project) => {
             // .collablaunch file
             const configUri = vscode.Uri.joinPath(folder, "/.collablaunch");
-            vscode.workspace.fs.writeFile(configUri, new TextEncoder().encode(JSON.stringify({ filesID: filesID, indexID: indexID, urlID: urlID, name: name }, null, 4)));
+            vscode.workspace.fs.writeFile(configUri, new TextEncoder().encode(JSON.stringify(project, null, 4)));
             vscode.window.showInformationMessage("Project joined successfully");
         });
     }
@@ -126,10 +116,10 @@ export class Project {
         }
         const projectUri = vscode.Uri.joinPath(folder, "/.collablaunch");
         const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(projectUri)));
-        if (!("filesID" in project) || typeof project.filesID !== "string" || 
+        if (!("folderID" in project) || typeof project.filesID !== "string" || 
+            !("filesID" in project) || typeof project.filesID !== "string" || 
             !("indexID" in project) || typeof project.indexID !== "string" || 
-            !("urlID" in project) || typeof project.urlID !== "string" || 
-            !("key" in project) || typeof project.key !== "boolean") {
+            !("urlID" in project) || typeof project.urlID !== "string") {
             throw new Error("Connection failed : invalid .collablaunch file");
         }
 
@@ -145,7 +135,7 @@ export class Project {
         }
 
         // Set instance and save it if not host (joining the session will restart the extension)
-        Project.instance = new Project(project.filesID, project.indexID, project.urlID, host);
+        Project.instance = new Project(project.folderID, project.filesID, project.indexID, project.urlID, host);
         if (!host) {
             context.globalState.update("projectState", Project.instance);
         }
