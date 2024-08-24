@@ -328,23 +328,23 @@ export class GoogleDrive {
 
     /**
      * @brief Get the URL of the current Live Share session for a project
-     * @param urlID ID of the .collaburl file
+     * @param project Project to get the URL for
      * @returns URL of the session if there is one, empty string otherwise
     **/
-    public async getLiveShareURL(urlID: string) : Promise<string> {
-        const url = await this.drive.files.get({ fileId: urlID, alt: "media" });
+    public async getLiveShareURL(project: GoogleDriveProject) : Promise<string> {
+        const url = await this.drive.files.get({ fileId: project.urlID, alt: "media" });
         return (url.data as string).substring(1);
     }
 
 
     /**
      * @brief Set the URL of the current Live Share session for a project
-     * @param urlID ID of the .collaburl file
+     * @param project Project to set the URL for
      * @param url URL of the session, empty string to end the session
     **/
-    public async setLiveShareURL(urlID: string, url: string) : Promise<void> {
+    public async setLiveShareURL(project: GoogleDriveProject, url: string) : Promise<void> {
         await this.drive.files.update({
-            fileId: urlID,
+            fileId: project.urlID,
             media: {
                 mimeType: "text/plain",
                 body: " " + url
