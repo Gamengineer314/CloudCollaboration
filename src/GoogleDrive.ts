@@ -150,7 +150,7 @@ export class GoogleDrive {
             else if (request.url.startsWith("/response")) {
                 if (request.url === "/response/invalid") {
                     vscode.window.showErrorMessage("Project pick failed : invalid project");
-                    result = "Project pick failed : invalid project. Please select the .collabfiles, the .collabindex and the .collaburl files corresponding to the project you want to join.";
+                    result = "Project pick failed : invalid project. Please select the .collabdynamic, the .collabstatic and the .collabstate files corresponding to the project you want to join.";
                 }
                 else if (request.url === "/response/canceled") {
                     vscode.window.showErrorMessage("Project pick failed : canceled");
@@ -158,18 +158,18 @@ export class GoogleDrive {
                 }
                 else {
                     const params = new URL(request.url, LOCALHOST).searchParams;
-                    const files = params.get("files");
-                    const index = params.get("index");
-                    const url = params.get("url");
+                    const dynamicID = params.get("dynamic");
+                    const staticID = params.get("static");
+                    const stateID = params.get("state");
                     const name = params.get("name");
-                    if (!files || !index || !url || !name) {
+                    if (!dynamicID || !staticID || !stateID || !name) {
                         return;
                     }
-                    const folder = await this.drive.files.get({ fileId: files, fields: "parents" });
+                    const folder = await this.drive.files.get({ fileId: dynamicID, fields: "parents" });
                     if (!folder.data.parents) {
                         return;
                     }
-                    callback(new GoogleDriveProject(folder.data.parents[0], files, index, url, name));
+                    callback(new GoogleDriveProject(folder.data.parents[0], dynamicID, staticID, stateID, name));
                     result = "Project pick succeeded. You can close this tab and go back to VSCode.";
                 }
                 response.end("");
@@ -206,11 +206,11 @@ export class GoogleDrive {
 <script type="text/javascript">
     function createPicker() {
         const view = new google.picker.DocsView()
-            .setMimeTypes("application/octet-stream,text/plain")
-            .setQuery("*.collabfiles | *.collabindex | *.collaburl");
+            .setMimeTypes("application/octet-stream,application/json")
+            .setQuery("*.collabdynamic | *.collabstatic | *.collabstate");
         const picker = new google.picker.PickerBuilder()
             .addView(view)
-            .setTitle("Select a project (.collabfiles, .collabindex and .collaburl files)")
+            .setTitle("Select a project (.collabdynamic, .collabstatic and .collabstate files)")
             .setCallback(pickerCallback)
             .enableFeature(google.picker.Feature.NAV_HIDDEN)
             .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
@@ -225,11 +225,11 @@ export class GoogleDrive {
         if (data.action == google.picker.Action.PICKED) {
             const fileNames = data.docs.map(doc => doc.name);
             const name = fileNames[0].substring(0, fileNames[0].lastIndexOf("."));
-            if (fileNames.length === 3 && fileNames.includes(name + ".collabfiles") && fileNames.includes(name + ".collabindex") && fileNames.includes(name + ".collaburl")) {
-                const files = data.docs[fileNames.indexOf(name + ".collabfiles")];
-                const index = data.docs[fileNames.indexOf(name + ".collabindex")];
-                const url = data.docs[fileNames.indexOf(name + ".collaburl")];
-                await fetch("${LOCALHOST}/response?files=" + files.id + "&index=" + index.id + "&url=" + url.id + "&name=" + name);
+            if (fileNames.length === 3 && fileNames.includes(name + ".collabdynamic") && fileNames.includes(name + ".collabstatic") && fileNames.includes(name + ".collabstate")) {
+                const dynamic = data.docs[fileNames.indexOf(name + ".collabdynamic")];
+                const static = data.docs[fileNames.indexOf(name + ".collabstatic")];
+                const state = data.docs[fileNames.indexOf(name + ".collabstate")];
+                await fetch("${LOCALHOST}/response?dynamic=" + dynamic.id + "&static=" + static.id + "&state=" + state.id + "&name=" + name);
             }
             else {
                 await fetch("${LOCALHOST}/response/invalid");
@@ -251,10 +251,7 @@ export class GoogleDrive {
     /**
      * @brief Create a new project in Google Drive
      * @param name Name of the project
-     * @returns
-     * filesID: ID of the .collabfiles file, 
-     * indexID: ID of the .collabindex file, 
-     * urlID: ID of the .collaburl file
+     * @returns Created project
     **/
     public async createProject(name: string) : Promise<GoogleDriveProject> {
         const folder = await this.drive.files.create({
@@ -268,9 +265,9 @@ export class GoogleDrive {
             throw new Error("Failed to create folder");
         }
 
-        const files = await this.drive.files.create({
+        const dynamicFile = await this.drive.files.create({
             requestBody: {
-                name: name + ".collabfiles",
+                name: name + ".collabdynamic",
                 mimeType: "application/octet-stream",
                 parents: [folder.data.id]
             },
@@ -280,14 +277,14 @@ export class GoogleDrive {
             },
             fields: "id"
         });
-        if (!files.data.id) {
+        if (!dynamicFile.data.id) {
             await this.drive.files.delete({ fileId: folder.data.id });
-            throw new Error("Failed to create .collabfiles file");
+            throw new Error("Failed to create .collabdynamic file");
         }
 
-        const index = await this.drive.files.create({
+        const staticFile = await this.drive.files.create({
             requestBody: {
-                name: name + ".collabindex",
+                name: name + ".collabstatic",
                 mimeType: "application/octet-stream",
                 parents: [folder.data.id]
             },
@@ -297,57 +294,57 @@ export class GoogleDrive {
             },
             fields: "id"
         });
-        if (!index.data.id) {
+        if (!staticFile.data.id) {
             await this.drive.files.delete({ fileId: folder.data.id });
-            await this.drive.files.delete({ fileId: files.data.id });
-            throw new Error("Failed to create .collabindex file");
+            await this.drive.files.delete({ fileId: dynamicFile.data.id });
+            throw new Error("Failed to create .collabstatic file");
         }
 
-        const url = await this.drive.files.create({
+        const stateFile = await this.drive.files.create({
             requestBody: {
-                name: name + ".collaburl",
-                mimeType: "text/plain",
+                name: name + ".collabstate",
+                mimeType: "application/json",
                 parents: [folder.data.id]
             },
             media: {
-                mimeType: "text/plain",
-                body: ""
+                mimeType: "application/json",
+                body: JSON.stringify(new ProjectState(0, 0, ""))
             },
             fields: "id"
         });
-        if (!url.data.id) {
+        if (!stateFile.data.id) {
             await this.drive.files.delete({ fileId: folder.data.id });
-            await this.drive.files.delete({ fileId: files.data.id });
-            await this.drive.files.delete({ fileId: index.data.id });
+            await this.drive.files.delete({ fileId: dynamicFile.data.id });
+            await this.drive.files.delete({ fileId: staticFile.data.id });
             throw new Error("Failed to create .collaburl file");
         }
 
-        return new GoogleDriveProject(folder.data.id, files.data.id, index.data.id, url.data.id, name);
+        return new GoogleDriveProject(folder.data.id, dynamicFile.data.id, staticFile.data.id, stateFile.data.id, name);
     }
 
 
     /**
-     * @brief Get the URL of the current Live Share session for a project
-     * @param project Project to get the URL for
-     * @returns URL of the session if there is one, empty string otherwise
+     * @brief Get the state of a project
+     * @param project Project to get the state for
+     * @returns State of the project
     **/
-    public async getLiveShareURL(project: GoogleDriveProject) : Promise<string> {
-        const url = await this.drive.files.get({ fileId: project.urlID, alt: "media" });
-        return (url.data as string).substring(1);
+    public async getState(project: GoogleDriveProject) : Promise<ProjectState> {
+        const state = await this.drive.files.get({ fileId: project.stateID, alt: "media" });
+        return state.data as ProjectState;
     }
 
 
     /**
-     * @brief Set the URL of the current Live Share session for a project
-     * @param project Project to set the URL for
-     * @param url URL of the session, empty string to end the session
+     * @brief Set the state of a project
+     * @param project Project to set the state for
+     * @param state State of the project
     **/
-    public async setLiveShareURL(project: GoogleDriveProject, url: string) : Promise<void> {
+    public async setState(project: GoogleDriveProject, state: ProjectState) : Promise<void> {
         await this.drive.files.update({
-            fileId: project.urlID,
+            fileId: project.stateID,
             media: {
-                mimeType: "text/plain",
-                body: " " + url
+                mimeType: "application/json",
+                body: JSON.stringify(state)
             }
         });
     }
@@ -357,5 +354,11 @@ export class GoogleDrive {
 
 
 export class GoogleDriveProject {
-    public constructor(public folderID: string, public filesID: string, public indexID: string, public urlID: string, public name: string) {}
+    public constructor(public folderID: string, public dynamicID: string, public staticID: string, public stateID: string, public name: string) {}
+}
+
+
+
+export class ProjectState {
+    public constructor(public dynamicVersion: number, public staticVersion: number, public url: string) {}
 }
