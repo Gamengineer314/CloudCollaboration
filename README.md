@@ -41,5 +41,5 @@ You will also need a Google account so the extension can access your Google Driv
 - Option to copy project files (without .collabconfig and .collablaunch) to another folder
 - Custom editor for .collabconfig and .collablaunch files (project name, Connect and Disconnect button and other settings)
 - Sharing settings in .collabconfig file (add participants manually or allow anyone with the id to join)
-- Ignore settings (similar to .gitignore for git) in .collabconfig file
+- Settings to choose which files are ignored and which are static in .collabconfig file
 - Publish the extension on the marketplace

@@ -308,7 +308,7 @@ export class GoogleDrive {
             },
             media: {
                 mimeType: "application/json",
-                body: JSON.stringify(new ProjectState(0, 0, ""))
+                body: JSON.stringify(new ProjectState())
             },
             fields: "id"
         });
@@ -360,5 +360,7 @@ export class GoogleDriveProject {
 
 
 export class ProjectState {
-    public constructor(public dynamicVersion: number, public staticVersion: number, public url: string) {}
+    public dynamicVersion: number = 0;
+    public staticVersion: number = 0;
+    public url: string = "";
 }

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
+import { FilesConfig } from "./FileSystem";
 import { context } from "./extension";
 
 
@@ -110,30 +111,35 @@ export class Project {
         if (!folder) {
             throw new Error("Connection failed : no folder opened");
         }
-        const files = await vscode.workspace.fs.readDirectory(folder);
-        if (files.length !== 1 || files[0][0] !== ".collablaunch") {
-            throw new Error("Connection failed : folder must contain a single .collablaunch file");
-        }
         const projectUri = vscode.Uri.joinPath(folder, "/.collablaunch");
         const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(projectUri))) as GoogleDriveProject;
-
-        // Get or create Live Share session
         const state = await GoogleDrive.Instance.getState(project);
         const host = state.url === "";
+
         if (host) {
+            // Create Live Share session
             state.url = await LiveShare.Instance.createSession();
             await GoogleDrive.Instance.setState(project, state);
-            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+
+            // Add config if new project
+            if (state.staticVersion === 0 && state.dynamicVersion === 0) {
+                const configUri = vscode.Uri.joinPath(folder, "/.collabconfig");
+                const config = new Config(project.name, new FilesConfig());
+                vscode.workspace.fs.writeFile(configUri, new TextEncoder().encode(JSON.stringify(config, null, 4)));
+            }
         }
         else {
+            // Join Live Share session
             await LiveShare.Instance.joinSession(state.url);
-        }
+        }    
 
         // Set instance and save it if not host (joining the session will restart the extension)
         Project.instance = new Project(project, state, host);
         if (!host) {
             context.globalState.update("projectState", Project.instance);
         }
+
+        vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
     }
 
 
@@ -164,4 +170,10 @@ export class Project {
         vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
     }
 
+}
+
+
+
+export class Config {
+    public constructor(public name: string, public filesConfig: FilesConfig) {}
 }
