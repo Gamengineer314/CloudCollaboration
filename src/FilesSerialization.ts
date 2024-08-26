@@ -11,7 +11,7 @@ export class FilesSerializer {
     **/
     public add(name: string, content: Uint8Array) {
         // Resize buffer if needed
-        while (this.length + content.length > this.buffer.byteLength) {
+        while (this.length + name.length + 5 + content.length > this.buffer.byteLength) {
             const newBuffer = new Uint8Array(this.buffer.byteLength * 2);
             newBuffer.set(this.buffer);
             this.buffer = newBuffer;
