@@ -6,8 +6,8 @@ import { FilesDeserializer, FilesSerializer } from "./FilesSerialization";
 
 export class FileSystem {
 
-    private dynamicNames: Set<string> = new Set<string>();
-    private staticNames: Set<string> = new Set<string>();
+    private previousDynamic: Map<string, number> = new Map<string, number>(); // key: name, value: last modified time
+    private previousStatic: Map<string, number> = new Map<string, number>();
     
     private constructor(
         private state: ProjectState, 
@@ -84,16 +84,14 @@ export class FileSystem {
         // Load files in the workspace
         for (const file of new FilesDeserializer(dynamicFiles)) {
             await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder, file.name), file.content);
-            this.dynamicNames.add(file.name);
+            const time = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, file.name))).mtime;
+            this.previousDynamic.set(file.name, time);
         }
         for (const file of new FilesDeserializer(staticFiles)) {
             await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder, file.name), file.content);
-            this.staticNames.add(file.name);
+            const time = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, file.name))).mtime;
+            this.previousDynamic.set(file.name, time);
         }
-
-        // Write project.json to update last modified time
-        const projectUri = vscode.Uri.joinPath(storageFolder, "project.json");
-        await vscode.workspace.fs.writeFile(projectUri, new TextEncoder().encode(JSON.stringify(this.storageProject)));
     }
 
 
@@ -114,17 +112,11 @@ export class FileSystem {
             throw new Error("Upload failed : not authenticated");
         }
 
-        // Increment version
-        const projectUri = vscode.Uri.joinPath(storageFolder, "project.json");
-        const lastUpload = (await vscode.workspace.fs.stat(projectUri)).mtime;
-        this.storageProject.version++;
-        await vscode.workspace.fs.writeFile(projectUri, new TextEncoder().encode(JSON.stringify(this.storageProject)));
-
         // Check if files were changed
+        let newDynamic = new Map<string, number>();
         let dynamicChanged = false;
-        let newDynamicNames = new Set<string>();
+        let newStatic = new Map<string, number>();
         let staticChanged = false;
-        let newStaticNames = new Set<string>();
         const names = await FileSystem.fileNames(folder);
         for (const name of names) {
             if (name === "/.collablaunch") { // Ignore .collablaunch file
@@ -132,41 +124,43 @@ export class FileSystem {
             }
 
             //if () { // Dynamic file
-                newDynamicNames.add(name);
+                const lastModified = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, name))).mtime;
+                newDynamic.set(name, lastModified);
                 if (!dynamicChanged) { // Check if file was changed since last upload
-                    const lastModified = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, name))).mtime;
-                    if (lastModified > lastUpload) {
+                    const previousLastModified = this.previousDynamic.get(name);
+                    if (!previousLastModified || lastModified > previousLastModified) {
                         dynamicChanged = true;
                     }
                 }
             /*}
             else { // Static file
-                newStaticNames.add(name);
+                const lastModified = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, name))).mtime;
+                newStatic.set(name, lastModified);
                 if (!staticChanged) { // Check if file was changed since last upload
-                    const lastModified = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, name))).mtime;
-                    if (lastModified > lastUpload) {
+                    const previousLastModified = this.previousStatic.get(name);
+                    if (!previousLastModified || lastModified > previousLastModified) {
                         staticChanged = true;
                     }
                 }
             }*/
         }
-        for (const name of this.dynamicNames) {
-            if (!newDynamicNames.has(name)) { // Check if file was deleted since last upload
+        for (const name of this.previousDynamic.keys()) {
+            if (!newDynamic.has(name)) { // Check if file was deleted since last upload
                 dynamicChanged = true;
             }
         }
-        for (const name of this.staticNames) {
-            if (!newStaticNames.has(name)) { // Check if file was deleted since last upload
+        for (const name of this.previousStatic.keys()) {
+            if (!newStatic.has(name)) { // Check if file was deleted since last upload
                 staticChanged = true;
             }
         }
-        this.dynamicNames = newDynamicNames;
-        this.staticNames = newStaticNames;
+        this.previousDynamic = newDynamic;
+        this.previousStatic = newStatic;
 
         // Upload files if they were changed
         if (dynamicChanged) {
             const serializer = new FilesSerializer();
-            for (const name of newDynamicNames) {
+            for (const name of newDynamic.keys()) {
                 serializer.add(name, await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder, name)));
             }
             const dynamicFiles = serializer.serialize();
@@ -176,7 +170,7 @@ export class FileSystem {
         }
         if (staticChanged) {
             const serializer = new FilesSerializer();
-            for (const name of newStaticNames) {
+            for (const name of newStatic.keys()) {
                 serializer.add(name, await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder, name)));
             }
             const staticFiles = serializer.serialize();
@@ -184,8 +178,13 @@ export class FileSystem {
             await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(storageFolder, "project.collabstatic"), staticFiles);
             this.state.staticVersion = this.storageProject.version;
         }
+
+        // Increment version if files were changed
         if (dynamicChanged || staticChanged) {
             await GoogleDrive.Instance.setState(this.googleDriveProject, this.state);
+            const projectUri = vscode.Uri.joinPath(storageFolder, "project.json");
+            this.storageProject.version++;
+            await vscode.workspace.fs.writeFile(projectUri, new TextEncoder().encode(JSON.stringify(this.storageProject)));
         }
     }
 
