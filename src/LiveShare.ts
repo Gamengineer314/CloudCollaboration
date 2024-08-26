@@ -21,13 +21,13 @@ export class LiveShare {
     public static async activate() : Promise<void> {
         // Check instance
         if (LiveShare.instance) {
-            throw new Error("Initialization failed : already initialized");
+            throw new Error("LiveShare initialization failed : already initialized");
         }
 
         // Get Live Share API if available
         const liveShare = await vlsl.getApi();
         if (!liveShare) {
-            throw new Error("Initialization failed : Live Share not available");
+            throw new Error("LiveShare initialization failed : Live Share not available");
         }
 
         LiveShare.instance = new LiveShare(liveShare);

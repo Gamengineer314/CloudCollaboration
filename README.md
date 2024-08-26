@@ -23,23 +23,20 @@ You will also need a Google account so the extension can access your Google Driv
 - Create a new project in the [Google Cloud Console](https://console.cloud.google.com/projectcreate).
 - Go to "APIs & Services" -> "Enabled APIs & services" -> "ENABLE APIS AND SERVICES" and enable "Google Drive API" and "Google Picker API".
 - Go to "APIs & Services" -> "OAuth consent screen" and setup a consent screen with scopes "drive.file".
-- Go to "APIs & Services" -> "Credentials" -> "CREATE CREDENTIALS" and create an API key and a web application OAuth client ID. Add "http://localhost:31415" and "http://127.0.0.1:31415" to "Authorized JavaScript origins" and "Authorized redirect URIs".
+- Go to "APIs & Services" -> "Credentials" -> "CREATE CREDENTIALS" and create a web application OAuth client ID. Add "http://localhost:31415" and "http://127.0.0.1:31415" to "Authorized JavaScript origins" and "Authorized redirect URIs".
 - Create a new file `src/credentials.ts` containing :
     ```ts
     export const CLIENT_ID = "<YOUR_CLIENT_ID>";
     export const CLIENT_SECRET = "<YOUR_CLIENT_SECRET>";
-    export const API_KEY = "<YOUR_API_KEY>";
     export const PROJECT_NUMBER = "<YOUR_PROJECT_NUMBER>";
     ```
-    Replace `<YOUR_CLIENT_ID>`, `<YOUR_CLIENT_SECRET>`, `<YOUR_API_KEY>` and `<YOUR_PROJECT_NUMBER>` by the credentials you created (you can find the project number in "IAM & Admin" -> "Settings").
+    Replace `<YOUR_CLIENT_ID>`, `<YOUR_CLIENT_SECRET>` and `<YOUR_PROJECT_NUMBER>` by the credentials you created (you can find the project number in "IAM & Admin" -> "Settings").
 
 ## To do
-- Loading and unloading of project files
-- Frequent backups (on Google Drive and also locally to not load the entire project every time)
-- Merge Live Share sessions if two are started at the same time
+- Settings to choose which files are ignored and which are static in .collabconfig file
+- Handle errors and edge cases
 - Transfer Live Share session if host disconnects or crashes
 - Option to copy project files (without .collabconfig and .collablaunch) to another folder
 - Custom editor for .collabconfig and .collablaunch files (project name, Connect and Disconnect button and other settings)
 - Sharing settings in .collabconfig file (add participants manually or allow anyone with the id to join)
-- Settings to choose which files are ignored and which are static in .collabconfig file
 - Publish the extension on the marketplace

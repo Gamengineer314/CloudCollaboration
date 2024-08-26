@@ -56,7 +56,7 @@ function commandCallback(callback: () => any) : () => Promise<void> {
         }
         catch (error : any) {
             vscode.window.showErrorMessage(error.message);
-            console.error("Error : " + error);
+            console.error(error);
         }
     };
 }

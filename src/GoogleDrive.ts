@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { Auth, drive_v3 } from "googleapis";
 import { Server, createServer } from "http";
 import { context } from "./extension";
-import { CLIENT_ID, CLIENT_SECRET, API_KEY, PROJECT_NUMBER } from "./credentials";
+import { CLIENT_ID, CLIENT_SECRET, PROJECT_NUMBER } from "./credentials";
 
 
 const PORT = 31415;
@@ -214,7 +214,6 @@ export class GoogleDrive {
             .setCallback(pickerCallback)
             .enableFeature(google.picker.Feature.NAV_HIDDEN)
             .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
-            .setDeveloperKey("${API_KEY}")
             .setAppId("${PROJECT_NUMBER}")
             .setOAuthToken("${(await this.auth.getAccessToken()).token}")
             .build();
@@ -349,12 +348,72 @@ export class GoogleDrive {
         });
     }
 
+
+    /**
+     * @brief Get the dynamic files of a project
+     * @param project Project to get the dynamic files for
+     * @returns Dynamic files of the project
+    **/
+    public async getDynamic(project: GoogleDriveProject) : Promise<Uint8Array> {
+        const dynamic = await this.drive.files.get({ fileId: project.dynamicID, alt: "media" });
+        return dynamic.data as Uint8Array;
+    }
+
+
+    /**
+     * @brief Set the dynamic files of a project
+     * @param project Project to set the dynamic files for
+     * @param dynamic Dynamic files of the project
+    **/
+    public async setDynamic(project: GoogleDriveProject, dynamic: Uint8Array) : Promise<void> {
+        await this.drive.files.update({
+            fileId: project.dynamicID,
+            media: {
+                mimeType: "application/octet-stream",
+                body: dynamic
+            }
+        });
+    }
+
+
+    /**
+     * @brief Get the static files of a project
+     * @param project Project to get the static files for
+     * @returns Static files of the project
+    **/
+    public async getStatic(project: GoogleDriveProject) : Promise<Uint8Array> {
+        const staticFile = await this.drive.files.get({ fileId: project.staticID, alt: "media" });
+        return staticFile.data as Uint8Array;
+    }
+
+
+    /**
+     * @brief Set the static files of a project
+     * @param project Project to set the static files for
+     * @param static Static files of the project
+    **/
+    public async setStatic(project: GoogleDriveProject, staticFile: Uint8Array) : Promise<void> {
+        await this.drive.files.update({
+            fileId: project.staticID,
+            media: {
+                mimeType: "application/octet-stream",
+                body: staticFile
+            }
+        });
+    }
+    
 }
 
 
 
 export class GoogleDriveProject {
-    public constructor(public folderID: string, public dynamicID: string, public staticID: string, public stateID: string, public name: string) {}
+    public constructor(
+        public folderID: string, 
+        public dynamicID: string, 
+        public staticID: string, 
+        public stateID: string, 
+        public name: string
+    ) {}
 }
 
 
