@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
 import { context } from "./extension";
 import { FilesDeserializer, FilesSerializer } from "./FilesSerialization";
+import { match } from "./FileRules";
 
 
 export class FileSystem {
@@ -90,15 +91,16 @@ export class FileSystem {
         for (const file of new FilesDeserializer(staticFiles)) {
             await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder, file.name), file.content);
             const time = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, file.name))).mtime;
-            this.previousDynamic.set(file.name, time);
+            this.previousStatic.set(file.name, time);
         }
     }
 
 
     /**
      * @brief Upload files from the current folder to Google Drive
+     * @param config Configuration for the files to upload
     **/
-    public async upload() : Promise<void> {
+    public async upload(config: FilesConfig) : Promise<void> {
         // Checks
         const storageFolder = context.storageUri;
         if (!storageFolder) {
@@ -119,21 +121,11 @@ export class FileSystem {
         let staticChanged = false;
         const names = await FileSystem.fileNames(folder);
         for (const name of names) {
-            if (name === "/.collablaunch") { // Ignore .collablaunch file
+            if (name === "/.collablaunch" || match(name, config.ignoreRules)) { // Ignore .collablaunch and ignored files
                 continue;
             }
 
-            //if () { // Dynamic file
-                const lastModified = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, name))).mtime;
-                newDynamic.set(name, lastModified);
-                if (!dynamicChanged) { // Check if file was changed since last upload
-                    const previousLastModified = this.previousDynamic.get(name);
-                    if (!previousLastModified || lastModified > previousLastModified) {
-                        dynamicChanged = true;
-                    }
-                }
-            /*}
-            else { // Static file
+            if (match(name, config.staticRules)) { // Static file
                 const lastModified = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, name))).mtime;
                 newStatic.set(name, lastModified);
                 if (!staticChanged) { // Check if file was changed since last upload
@@ -142,7 +134,17 @@ export class FileSystem {
                         staticChanged = true;
                     }
                 }
-            }*/
+            }
+            else { // Dynamic file
+                const lastModified = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, name))).mtime;
+                newDynamic.set(name, lastModified);
+                if (!dynamicChanged) { // Check if file was changed since last upload
+                    const previousLastModified = this.previousDynamic.get(name);
+                    if (!previousLastModified || lastModified > previousLastModified) {
+                        dynamicChanged = true;
+                    }
+                }
+            }
         }
         for (const name of this.previousDynamic.keys()) {
             if (!newDynamic.has(name)) { // Check if file was deleted since last upload
@@ -166,7 +168,7 @@ export class FileSystem {
             const dynamicFiles = serializer.serialize();
             await GoogleDrive.Instance.setDynamic(this.googleDriveProject, dynamicFiles);
             await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(storageFolder, "project.collabdynamic"), dynamicFiles);
-            this.state.dynamicVersion = this.storageProject.version;
+            this.state.dynamicVersion = this.storageProject.version + 1;
         }
         if (staticChanged) {
             const serializer = new FilesSerializer();
@@ -176,7 +178,7 @@ export class FileSystem {
             const staticFiles = serializer.serialize();
             await GoogleDrive.Instance.setStatic(this.googleDriveProject, staticFiles);
             await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(storageFolder, "project.collabstatic"), staticFiles);
-            this.state.staticVersion = this.storageProject.version;
+            this.state.staticVersion = this.storageProject.version + 1;
         }
 
         // Increment version if files were changed
@@ -192,15 +194,27 @@ export class FileSystem {
     /**
      * @brief Clear all files in the current folder
     **/
-    public async clear() : Promise<void> {
+    public async clear(config: FilesConfig) : Promise<void> {
         const folder = vscode.workspace.workspaceFolders?.[0].uri;
         if (!folder) {
             throw new Error("Clear failed : no folder opened");
         }
+
+        // Delete files
+        const names = await FileSystem.fileNames(folder);
+        for (const name of names) {
+            if (name !== "/.collablaunch" && !match(name, config.ignoreRules)) {
+                await vscode.workspace.fs.delete(vscode.Uri.joinPath(folder, name));
+            }
+        }
+
+        // Delete folders
         const files = await vscode.workspace.fs.readDirectory(folder);
         for (const file of files) {
-            if (file[0] !== ".collablaunch") {
-                await vscode.workspace.fs.delete(vscode.Uri.joinPath(folder, file[0]), { recursive: true });
+            if (file[1] === vscode.FileType.Directory) {
+                if ((await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(folder, file[0]))).length === 0) {
+                    await vscode.workspace.fs.delete(vscode.Uri.joinPath(folder, file[0]), { recursive: true });
+                }
             }
         }
     }
@@ -211,7 +225,7 @@ export class FileSystem {
      * @param folder The folder
      * @param subfolder The current sub-folder
     **/
-    private static async fileNames(folder: vscode.Uri, subfolder: string = "") : Promise<string[]> {
+    public static async fileNames(folder: vscode.Uri, subfolder: string = "") : Promise<string[]> {
         let fileNames = [];
         const files = await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(folder, subfolder));
         for (const [name, type] of files) {
@@ -240,6 +254,6 @@ class StorageProject {
 
 
 export class FilesConfig {
-    public staticRules: string[] = [];
-    public dynamicRules: string[] = [];
+    public staticRules: string[] = ["*.png", "*.jpg", "*.jpeg", "*.pdf", "*.svg"];
+    public ignoreRules: string[] = [".vscode/*"];
 }

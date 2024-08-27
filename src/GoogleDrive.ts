@@ -3,6 +3,7 @@ import { Auth, drive_v3 } from "googleapis";
 import { Server, createServer } from "http";
 import { context } from "./extension";
 import { CLIENT_ID, CLIENT_SECRET, PROJECT_NUMBER } from "./credentials";
+import { Readable } from "stream";
 
 
 const PORT = 31415;
@@ -355,22 +356,22 @@ export class GoogleDrive {
      * @returns Dynamic files of the project
     **/
     public async getDynamic(project: GoogleDriveProject) : Promise<Uint8Array> {
-        const dynamic = await this.drive.files.get({ fileId: project.dynamicID, alt: "media" });
-        return dynamic.data as Uint8Array;
+        const dynamicFile = await this.drive.files.get({ fileId: project.dynamicID, alt: "media" }, { responseType: "arraybuffer" });
+        return new Uint8Array(dynamicFile.data as ArrayBuffer);
     }
 
 
     /**
      * @brief Set the dynamic files of a project
      * @param project Project to set the dynamic files for
-     * @param dynamic Dynamic files of the project
+     * @param dynamicFile Dynamic files of the project
     **/
-    public async setDynamic(project: GoogleDriveProject, dynamic: Uint8Array) : Promise<void> {
+    public async setDynamic(project: GoogleDriveProject, dynamicFile: Uint8Array) : Promise<void> {
         await this.drive.files.update({
             fileId: project.dynamicID,
             media: {
                 mimeType: "application/octet-stream",
-                body: dynamic
+                body: Readable.from([dynamicFile])
             }
         });
     }
@@ -382,24 +383,26 @@ export class GoogleDrive {
      * @returns Static files of the project
     **/
     public async getStatic(project: GoogleDriveProject) : Promise<Uint8Array> {
-        const staticFile = await this.drive.files.get({ fileId: project.staticID, alt: "media" });
-        return staticFile.data as Uint8Array;
+        const staticFile = await this.drive.files.get({ fileId: project.staticID, alt: "media" }, { responseType: "arraybuffer" });
+        return new Uint8Array(staticFile.data as ArrayBuffer);
     }
 
 
     /**
      * @brief Set the static files of a project
      * @param project Project to set the static files for
-     * @param static Static files of the project
+     * @param staticFile Static files of the project
     **/
     public async setStatic(project: GoogleDriveProject, staticFile: Uint8Array) : Promise<void> {
+        const time = new Date().getTime();
         await this.drive.files.update({
             fileId: project.staticID,
             media: {
                 mimeType: "application/octet-stream",
-                body: staticFile
+                body: Readable.from([staticFile])
             }
         });
+        console.log(new Date().getTime() - time);
     }
     
 }

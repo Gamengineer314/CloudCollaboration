@@ -136,7 +136,7 @@ export class Project {
                 vscode.workspace.fs.writeFile(configUri, new TextEncoder().encode(JSON.stringify(config, null, 4)));
             }
             else { // Download from Google Drive
-                fileSystem.download();
+                await fileSystem.download();
             }
         }
         else {
@@ -178,8 +178,7 @@ export class Project {
             const state = Project.Instance.state;
             state.url = "";
             await GoogleDrive.Instance.setState(Project.Instance.project, state);
-            await Project.Instance.fileSystem?.upload();
-            await Project.Instance.fileSystem?.clear();
+            await Project.Instance.upload(true);
         }
         
         Project.Instance.stopUpload();
@@ -189,15 +188,10 @@ export class Project {
 
 
     /**
-     * @brief Upload files regularly to Google Drive
+     * @brief Start uploading files regularly to Google Drive
     **/
     private startUpload() : void {
-        this.intervalID = setInterval(async () => {
-            if (!this.fileSystem) {
-                throw new Error("Upload failed : no file system");
-            }
-            await this.fileSystem.upload();
-        }, 60_000);
+        this.intervalID = setInterval(this.upload.bind(this), 60_000);
     }
 
 
@@ -208,6 +202,28 @@ export class Project {
         if (this.intervalID) {
             clearInterval(this.intervalID);
             this.intervalID = undefined;
+        }
+    }
+
+
+    /**
+     * @brief Upload files to Google Drive
+     * @param clear Wether to clear the folder after uploading or not
+    **/
+    private async upload(clear: boolean = false) : Promise<void> {
+        if (!this.fileSystem) {
+            throw new Error("Upload failed : no file system");
+        }
+        const folder = vscode.workspace.workspaceFolders?.[0].uri;
+        if (!folder) {
+            throw new Error("Upload failed : no folder opened");
+        }
+        const configUri = vscode.Uri.joinPath(folder, ".collabconfig");
+        const config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(configUri))) as Config;
+
+        await this.fileSystem.upload(config.filesConfig);
+        if (clear) {
+            await this.fileSystem.clear(config.filesConfig);
         }
     }
 
