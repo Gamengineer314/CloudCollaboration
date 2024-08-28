@@ -80,12 +80,12 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
         
 
         // Get file paths
-        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'launchEditor.js'));
         const styleVsCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'launchEditor.css'));
 
         // Use a nonce to whitelist which scripts can be run
 		const nonce = getNonce();
 
+        // Please for the sake of your mental health don't look at the hmtl code below :)
         return /* html */`
             <!DOCTYPE html>
             <html lang="en">
@@ -107,12 +107,12 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
                     const vscode = acquireVsCodeApi();
 
                     function connect() {
-                        document.body.innerHTML = '<h1>Connecting...</h1>';
+                        document.body.innerHTML = '<h1>${name}</h1>\\n<h2>Connecting...</h2>';
                         vscode.postMessage({ type: 'connect' });
                     }
 
                     function disconnect() {
-                        document.body.innerHTML = '<h1>Disconnecting...</h1>';
+                        document.body.innerHTML = '<h1>${name}</h1>\\n<h2>Disconnecting...</h2>';
                         vscode.postMessage({ type: 'disconnect' });
                     }
 
@@ -132,8 +132,6 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
                         }
                     }
                 </script>
-
-                <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
         `;
     }
