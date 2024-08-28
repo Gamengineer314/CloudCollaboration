@@ -2,22 +2,10 @@ import * as vscode from 'vscode';
 import { GoogleDriveProject } from './GoogleDrive';
 import { getNonce } from './util';
 import { Project } from './Project';
+import { context } from './extension';
 
 
 export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
-
-    public static register(context: vscode.ExtensionContext): vscode.Disposable {
-        const provider = new LaunchEditorProvider(context);
-        const providerRegistration = vscode.window.registerCustomEditorProvider(LaunchEditorProvider.viewType, provider);
-        return providerRegistration;
-    }
-
-    private static readonly viewType = 'cloud-collaboration.launchEditor';
-
-    constructor(
-        private readonly context: vscode.ExtensionContext
-    ) { }
-
 
     // Called when our custom editor is opened.
     public async resolveCustomTextEditor(
@@ -87,8 +75,8 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
         
 
         // Get file paths
-        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'launchEditor.js'));
-        const styleVsCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'launchEditor.css'));
+        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'launchEditor.js'));
+        const styleVsCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'launchEditor.css'));
 
         // Use a nonce to whitelist which scripts can be run
 		const nonce = getNonce();

@@ -45,7 +45,8 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(disconnect);
 
     // Register editors
-    const launchEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.launchEditor", new LaunchEditorProvider(context));
+    const launchEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.launchEditor", new LaunchEditorProvider());
+    context.subscriptions.push(launchEditor);
 }
 
 
