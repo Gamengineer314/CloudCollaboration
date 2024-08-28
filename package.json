@@ -52,19 +52,19 @@
         },
         {
           "command": "cloud-collaboration.createProject",
-          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected"
+          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.joinProject",
-          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected"
+          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.connect",
-          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && cloud-collaboration.liveShareAvailable"
+          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && cloud-collaboration.liveShareAvailable && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.disconnect",
-          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected"
+          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
         }
       ]
     },
