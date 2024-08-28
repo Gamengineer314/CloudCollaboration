@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { GoogleDriveProject } from './GoogleDrive';
-import { getNonce } from './util';
+import { randomString } from './util';
 import { Project } from './Project';
 import { context } from './extension';
 
@@ -22,31 +22,31 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
 
 
         // Setup initial content for the webview
-		webviewPanel.webview.options = {
-			enableScripts: true,
-		};
+        webviewPanel.webview.options = {
+            enableScripts: true,
+        };
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.Instance !== undefined);
 
         // Receive message from the webview.
-		webviewPanel.webview.onDidReceiveMessage(async e => {
-			switch (e.type) {
-				case 'openFolder':
-					this.openFolder(documentFolder);
-					return;
+        webviewPanel.webview.onDidReceiveMessage(async e => {
+            switch (e.type) {
+                case 'openFolder':
+                    this.openFolder(documentFolder);
+                    return;
 
-				case 'connect':
+                case 'connect':
                     await Project.connect();
                     // Update the webview
                     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.Instance !== undefined);
-					return;
+                    return;
                 
                 case 'disconnect':
                     await Project.disconnect();
                     // Update the webview
                     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.Instance !== undefined);
                     return;
-			}
-		});
+            }
+        });
     }
 
 
@@ -84,7 +84,7 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
         const styleVsCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'launchEditor.css'));
 
         // Use a nonce to whitelist which scripts can be run
-		const nonce = getNonce();
+        const nonce = randomString(32);
 
         return /* html */`
             <!DOCTYPE html>

@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
-import { fileUri, storageFileUri, recurListFolder } from "./extension";
 import { FilesDeserializer, FilesSerializer } from "./FilesSerialization";
 import { match } from "./FileRules";
+import { fileUri, storageFileUri, recurListFolder } from "./util";
 
 
 export class FileSystem {

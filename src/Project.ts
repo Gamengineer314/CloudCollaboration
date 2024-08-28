@@ -2,7 +2,8 @@ import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
-import { context, fileUri, listFolder } from "./extension";
+import { context } from "./extension";
+import { fileUri, listFolder } from "./util";
 
 
 export class Project {

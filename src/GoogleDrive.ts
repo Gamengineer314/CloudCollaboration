@@ -4,6 +4,7 @@ import { Server, createServer } from "http";
 import { context } from "./extension";
 import { CLIENT_ID, CLIENT_SECRET, PROJECT_NUMBER } from "./credentials";
 import { Readable } from "stream";
+import { randomString } from "./util";
 
 
 const PORT = 31415;
@@ -62,7 +63,7 @@ export class GoogleDrive {
 
         // Open prompt to authenticate and listen to localhost for redirection with code in URL parameters
         const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
-        const randomState = Math.random().toString(36).substring(2);
+        const randomState = randomString(32);
         GoogleDrive.server?.close();
         GoogleDrive.server = createServer(async (request, response) => {
             // Ignore other calls (ex: icon)
