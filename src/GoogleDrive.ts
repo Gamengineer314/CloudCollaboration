@@ -133,6 +133,18 @@ export class GoogleDrive {
 
 
     /**
+     * @brief Get the email address of the authenticated user
+    **/
+    public async getEmail() : Promise<string> {
+        const user = await this.drive.about.get({ fields: "user" });
+        if (!user.data.user || !user.data.user.emailAddress) {
+            throw new Error("Failed to get user email");
+        }
+        return user.data.user.emailAddress;
+    }
+
+
+    /**
      * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
     **/
     public async pickProject(callback: (project: GoogleDriveProject) => any ) : Promise<void> {
@@ -395,7 +407,6 @@ export class GoogleDrive {
      * @param staticFile Static files of the project
     **/
     public async setStatic(project: GoogleDriveProject, staticFile: Uint8Array) : Promise<void> {
-        const time = new Date().getTime();
         await this.drive.files.update({
             fileId: project.staticID,
             media: {
@@ -403,7 +414,64 @@ export class GoogleDrive {
                 body: Readable.from([staticFile])
             }
         });
-        console.log(new Date().getTime() - time);
+    }
+
+
+    /**
+     * @brief Share a project with a user
+     * @param project The project
+     * @param email Email of the user
+     * @returns Permission ID
+    **/
+    public async userShare(project: GoogleDriveProject, email: string) : Promise<Permission> {
+        const permission = await this.drive.permissions.create({
+            fileId: project.folderID,
+            requestBody: {
+                role: "writer",
+                type: "user",
+                emailAddress: email
+            },
+            fields: "id"
+        });
+        if (!permission.data.id) {
+            throw new Error("Failed to create permission");
+        }
+        return new Permission(email, permission.data.id);
+    }
+
+
+    /**
+     * @brief Share a project publicly
+     * @param project The project
+     * @returns Permission ID
+    **/
+    public async publicShare(project: GoogleDriveProject) : Promise<Permission> {
+        const permission = await this.drive.permissions.create({
+            fileId: project.folderID,
+            requestBody: {
+                role: "writer",
+                type: "anyone"
+            },
+            fields: "id"
+        });
+        if (!permission.data.id) {
+            throw new Error("Failed to create permission");
+        }
+        const url = await this.drive.files.get({ fileId: project.folderID, fields: "webViewLink" });
+        if (!url.data.webViewLink) {
+            throw new Error("Failed to get public link");
+        }
+        return new Permission(url.data.webViewLink, permission.data.id);
+    }
+
+
+    /**
+     * @brief Cancel sharing of a project
+     * @param project The project
+     * @param id The permission to cancel
+    **/
+    public async unshare(project: GoogleDriveProject, permission: Permission) : Promise<void> {
+        await this.drive.permissions.delete({ fileId: project.folderID, permissionId: permission.id });
     }
     
 }
@@ -417,6 +485,15 @@ export class GoogleDriveProject {
         public staticID: string, 
         public stateID: string, 
         public name: string
+    ) {}
+}
+
+
+
+export class Permission {
+    public constructor(
+        public name: string, // user email or public link
+        public id: string
     ) {}
 }
 

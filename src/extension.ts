@@ -43,6 +43,14 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(connect);
     const disconnect = vscode.commands.registerCommand("cloud-collaboration.disconnect", commandCallback(Project.disconnect));
     context.subscriptions.push(disconnect);
+    const userShare = vscode.commands.registerCommand("cloud-collaboration.userShare", commandCallback(() => Project.Instance?.userShare()));
+    context.subscriptions.push(userShare);
+    const userUnshare = vscode.commands.registerCommand("cloud-collaboration.userUnshare", commandCallback(() => Project.Instance?.userUnshare()));
+    context.subscriptions.push(userUnshare);
+    const publicShare = vscode.commands.registerCommand("cloud-collaboration.publicShare", commandCallback(() => Project.Instance?.publicShare()));
+    context.subscriptions.push(publicShare);
+    const publicUnshare = vscode.commands.registerCommand("cloud-collaboration.publicUnshare", commandCallback(() => Project.Instance?.publicUnshare()));
+    context.subscriptions.push(publicUnshare);
 
     // Register editors
     const launchEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.launchEditor", new LaunchEditorProvider());
@@ -62,7 +70,7 @@ export function deactivate() {
  * @param callback Callback to wrap
  * @returns Wrapped callback
 **/
-function commandCallback(callback: () => any) : () => Promise<void> {
+function commandCallback(callback: (() => any)) : () => Promise<void> {
     return async () => {
         try {
             await callback();
