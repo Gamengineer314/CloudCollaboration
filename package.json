@@ -67,7 +67,18 @@
           "when": "cloud-collaboration.authenticated && cloud-collaboration.connected"
         }
       ]
-    }
+    },
+    "customEditors": [
+      {
+        "viewType": "cloud-collaboration.launchEditor",
+        "displayName": "Cloud Collaboration Launch Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.collablaunch"
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

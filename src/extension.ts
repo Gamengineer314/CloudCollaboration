@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { GoogleDrive } from "./GoogleDrive";
 import { Project } from "./Project";
 import { LiveShare } from "./LiveShare";
+import { LaunchEditorProvider } from "./LaunchEditor";
 
 
 export let context : vscode.ExtensionContext;
@@ -34,6 +35,9 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(connect);
     const disconnect = vscode.commands.registerCommand("cloud-collaboration.disconnect", commandCallback(Project.disconnect));
     context.subscriptions.push(disconnect);
+
+    // Register editors
+    const launchEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.launchEditor", new LaunchEditorProvider(context));
 }
 
 

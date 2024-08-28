@@ -125,7 +125,8 @@ export class Project {
 
         // Get or create Live Share session
         const url = await GoogleDrive.Instance.getLiveShareURL(project.urlID);
-        const host = url === "";
+        //const host = url === "";
+        const host = true;
         if (host) {
             await GoogleDrive.Instance.setLiveShareURL(project.urlID, await LiveShare.Instance.createSession());
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
