@@ -8,11 +8,7 @@ import { context } from './extension';
 export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Called when our custom editor is opened.
-    public async resolveCustomTextEditor(
-        document: vscode.TextDocument,
-        webviewPanel: vscode.WebviewPanel,
-        _token: vscode.CancellationToken
-    ): Promise<void> {
+    public async resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, _token: vscode.CancellationToken) : Promise<void> {
         // Get the json from the opened .collablaunch file
         const project = JSON.parse(document.getText()) as GoogleDriveProject;
 
@@ -53,6 +49,15 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
 		});
     }
 
+
+    /**
+     * @brief This function returns the html content for the webview
+     * @param webview vscode.Webview object
+     * @param name Name of the opened project
+     * @param inSubFolder True if the .collablaunch file is in a subfolder
+     * @param connected True if vscode is already connected to the project
+     * @returns The html as a string
+    **/
     private getHtmlForWebview(webview: vscode.Webview, name: string, inSubFolder: boolean, connected: boolean) : string {
         // Create the html button depending on inSubFolder
         let button;
@@ -133,7 +138,12 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
         `;
     }
 
-    private openFolder(folder: vscode.Uri) {
+
+    /**
+     * @brief Opens the specified folder with vscode (changes the active directory)
+     * @param folder The folder to open
+    **/
+    private openFolder(folder: vscode.Uri) : void {
         vscode.commands.executeCommand('vscode.openFolder', folder);
     }
 }
