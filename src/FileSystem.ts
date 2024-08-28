@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
-import { context } from "./extension";
+import { fileUri, storageFileUri, recurListFolder } from "./extension";
 import { FilesDeserializer, FilesSerializer } from "./FilesSerialization";
 import { match } from "./FileRules";
 
@@ -24,23 +24,18 @@ export class FileSystem {
     **/
     public static async init(project: GoogleDriveProject, state: ProjectState) : Promise<FileSystem> {
         // Default files for new projects
-        const folder = context.storageUri;
-        if (!folder) {
-            throw new Error("FileSystem initialization failed : no storage folder");
-        }
-        const projectUri = vscode.Uri.joinPath(folder, "project.json");
         let storageProject;
         try {
-            storageProject = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(projectUri)));
+            storageProject = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(storageFileUri("project.json"))));
         }
         catch {
             storageProject = new StorageProject(0, "", "");
         }
         if (storageProject.dynamicID !== project.dynamicID || storageProject.staticID !== project.staticID) {
             storageProject = new StorageProject(0, project.dynamicID, project.staticID);
-            await vscode.workspace.fs.writeFile(projectUri, new TextEncoder().encode(JSON.stringify(storageProject)));
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder, "project.collabdynamic"), new Uint8Array());
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder, "project.collabstatic"), new Uint8Array());
+            await vscode.workspace.fs.writeFile(storageFileUri("project.json"), new TextEncoder().encode(JSON.stringify(storageProject)));
+            await vscode.workspace.fs.writeFile(storageFileUri("project.collabdynamic"), new Uint8Array());
+            await vscode.workspace.fs.writeFile(storageFileUri("project.collabstatic"), new Uint8Array());
         }
 
         return new FileSystem(state, project, storageProject);
@@ -51,46 +46,36 @@ export class FileSystem {
      * @brief Download files from Google Drive to the current folder
     **/
     public async download() : Promise<void> {
-        // Checks
-        const storageFolder = context.storageUri;
-        if (!storageFolder) {
-            throw new Error("Download failed : no storage folder");
-        }
-        const folder = vscode.workspace.workspaceFolders?.[0].uri;
-        if (!folder) {
-            throw new Error("Download failed : no folder opened");
-        }
+        // Download files if they were changed
         if (!GoogleDrive.Instance) {
             throw new Error("Download failed : not authenticated");
         }
-
-        // Download files if they were changed
         let dynamicFiles;
         if (this.state.dynamicVersion > this.storageProject.version) {
             dynamicFiles = await GoogleDrive.Instance.getDynamic(this.googleDriveProject);
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(storageFolder, "project.collabdynamic"), dynamicFiles);
+            await vscode.workspace.fs.writeFile(storageFileUri("project.collabdynamic"), dynamicFiles);
         }
         else {
-            dynamicFiles = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(storageFolder, "project.collabdynamic"));
+            dynamicFiles = await vscode.workspace.fs.readFile(storageFileUri("project.collabdynamic"));
         }
         let staticFiles;
         if (this.state.staticVersion > this.storageProject.version) {
             staticFiles = await GoogleDrive.Instance.getStatic(this.googleDriveProject);
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(storageFolder, "project.collabstatic"), staticFiles);
+            await vscode.workspace.fs.writeFile(storageFileUri("project.collabstatic"), staticFiles);
         }
         else {
-            staticFiles = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(storageFolder, "project.collabstatic"));
+            staticFiles = await vscode.workspace.fs.readFile(storageFileUri("project.collabstatic"));
         }
 
         // Load files in the workspace
         for (const file of new FilesDeserializer(dynamicFiles)) {
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder, file.name), file.content);
-            const time = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, file.name))).mtime;
+            await vscode.workspace.fs.writeFile(fileUri(file.name), file.content);
+            const time = (await vscode.workspace.fs.stat(fileUri(file.name))).mtime;
             this.previousDynamic.set(file.name, time);
         }
         for (const file of new FilesDeserializer(staticFiles)) {
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder, file.name), file.content);
-            const time = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, file.name))).mtime;
+            await vscode.workspace.fs.writeFile(fileUri(file.name), file.content);
+            const time = (await vscode.workspace.fs.stat(fileUri(file.name))).mtime;
             this.previousStatic.set(file.name, time);
         }
     }
@@ -101,32 +86,19 @@ export class FileSystem {
      * @param config Configuration for the files to upload
     **/
     public async upload(config: FilesConfig) : Promise<void> {
-        // Checks
-        const storageFolder = context.storageUri;
-        if (!storageFolder) {
-            throw new Error("Upload failed : no storage folder");
-        }
-        const folder = vscode.workspace.workspaceFolders?.[0].uri;
-        if (!folder) {
-            throw new Error("Upload failed : no folder opened");
-        }
-        if (!GoogleDrive.Instance) {
-            throw new Error("Upload failed : not authenticated");
-        }
-
         // Check if files were changed
         let newDynamic = new Map<string, number>();
         let dynamicChanged = false;
         let newStatic = new Map<string, number>();
         let staticChanged = false;
-        const names = await FileSystem.fileNames(folder);
+        const names = await recurListFolder();
         for (const name of names) {
             if (name === "/.collablaunch" || match(name, config.ignoreRules)) { // Ignore .collablaunch and ignored files
                 continue;
             }
 
             if (match(name, config.staticRules)) { // Static file
-                const lastModified = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, name))).mtime;
+                const lastModified = (await vscode.workspace.fs.stat(fileUri(name))).mtime;
                 newStatic.set(name, lastModified);
                 if (!staticChanged) { // Check if file was changed since last upload
                     const previousLastModified = this.previousStatic.get(name);
@@ -136,7 +108,7 @@ export class FileSystem {
                 }
             }
             else { // Dynamic file
-                const lastModified = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, name))).mtime;
+                const lastModified = (await vscode.workspace.fs.stat(fileUri(name))).mtime;
                 newDynamic.set(name, lastModified);
                 if (!dynamicChanged) { // Check if file was changed since last upload
                     const previousLastModified = this.previousDynamic.get(name);
@@ -160,31 +132,34 @@ export class FileSystem {
         this.previousStatic = newStatic;
 
         // Upload files if they were changed
+        if (!GoogleDrive.Instance) {
+            throw new Error("Upload failed : not authenticated");
+        }
         if (dynamicChanged) {
             const serializer = new FilesSerializer();
             for (const name of newDynamic.keys()) {
-                serializer.add(name, await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder, name)));
+                serializer.add(name, await vscode.workspace.fs.readFile(fileUri(name)));
             }
             const dynamicFiles = serializer.serialize();
             await GoogleDrive.Instance.setDynamic(this.googleDriveProject, dynamicFiles);
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(storageFolder, "project.collabdynamic"), dynamicFiles);
+            await vscode.workspace.fs.writeFile(storageFileUri("project.collabdynamic"), dynamicFiles);
             this.state.dynamicVersion = this.storageProject.version + 1;
         }
         if (staticChanged) {
             const serializer = new FilesSerializer();
             for (const name of newStatic.keys()) {
-                serializer.add(name, await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder, name)));
+                serializer.add(name, await vscode.workspace.fs.readFile(fileUri(name)));
             }
             const staticFiles = serializer.serialize();
             await GoogleDrive.Instance.setStatic(this.googleDriveProject, staticFiles);
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(storageFolder, "project.collabstatic"), staticFiles);
+            await vscode.workspace.fs.writeFile(storageFileUri("project.collabstatic"), staticFiles);
             this.state.staticVersion = this.storageProject.version + 1;
         }
 
         // Increment version if files were changed
         if (dynamicChanged || staticChanged) {
             await GoogleDrive.Instance.setState(this.googleDriveProject, this.state);
-            const projectUri = vscode.Uri.joinPath(storageFolder, "project.json");
+            const projectUri = storageFileUri("project.json");
             this.storageProject.version++;
             await vscode.workspace.fs.writeFile(projectUri, new TextEncoder().encode(JSON.stringify(this.storageProject)));
         }
@@ -201,7 +176,7 @@ export class FileSystem {
         }
 
         // Delete files
-        const names = await FileSystem.fileNames(folder);
+        const names = await recurListFolder();
         for (const name of names) {
             if (name !== "/.collablaunch" && !match(name, config.ignoreRules)) {
                 await vscode.workspace.fs.delete(vscode.Uri.joinPath(folder, name));
@@ -217,26 +192,6 @@ export class FileSystem {
                 }
             }
         }
-    }
-
-
-    /**
-     * @brief Recursively get the names (with sub-folder names) of all files in a folder
-     * @param folder The folder
-     * @param subfolder The current sub-folder
-    **/
-    public static async fileNames(folder: vscode.Uri, subfolder: string = "") : Promise<string[]> {
-        let fileNames = [];
-        const files = await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(folder, subfolder));
-        for (const [name, type] of files) {
-            if (type === vscode.FileType.File) {
-                fileNames.push(subfolder + "/" + name);
-            }
-            else if (type === vscode.FileType.Directory) {
-                fileNames.push(...await FileSystem.fileNames(folder, subfolder + "/" + name));
-            }
-        }
-        return fileNames;
     }
 
 }

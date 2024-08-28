@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
-import { context } from "./extension";
+import { context, fileUri, listFolder } from "./extension";
 
 
 export class Project {
@@ -42,11 +42,7 @@ export class Project {
     **/
     public static async createProject() : Promise<void> {
         // Check if folder is empty
-        const folder = vscode.workspace.workspaceFolders?.[0].uri;
-        if (!folder) {
-            throw new Error("Can't create project : no folder opened");
-        }
-        const files = await vscode.workspace.fs.readDirectory(folder);
+        const files = await listFolder();
         if (files.length > 0) {
             throw new Error("Can't create project : folder must be empty");
         }
@@ -64,8 +60,7 @@ export class Project {
         const project = await GoogleDrive.Instance.createProject(name);
         
         // .collablaunch file
-        const configUri = vscode.Uri.joinPath(folder, ".collablaunch");
-        vscode.workspace.fs.writeFile(configUri, new TextEncoder().encode(JSON.stringify(project, null, 4)));
+        vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
         vscode.window.showInformationMessage("Project created successfully");
     }
 
@@ -75,11 +70,7 @@ export class Project {
     **/
     public static async joinProject() : Promise<void> {
         // Check if folder is empty
-        const folder = vscode.workspace.workspaceFolders?.[0].uri;
-        if (!folder) {
-            throw new Error("Can't join project : no folder opened");
-        }
-        const files = await vscode.workspace.fs.readDirectory(folder);
+        const files = await listFolder();
         if (files.length > 0) {
             throw new Error("Can't join project : folder must be empty");
         }
@@ -90,8 +81,7 @@ export class Project {
         }
         await GoogleDrive.Instance.pickProject((project) => {
             // .collablaunch file
-            const configUri = vscode.Uri.joinPath(folder, ".collablaunch");
-            vscode.workspace.fs.writeFile(configUri, new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
             vscode.window.showInformationMessage("Project joined successfully");
         });
     }
@@ -113,12 +103,7 @@ export class Project {
         }
 
         // Get project information from .collablaunch file
-        const folder = vscode.workspace.workspaceFolders?.[0].uri;
-        if (!folder) {
-            throw new Error("Connection failed : no folder opened");
-        }
-        const projectUri = vscode.Uri.joinPath(folder, ".collablaunch");
-        const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(projectUri))) as GoogleDriveProject;
+        const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
         const state = await GoogleDrive.Instance.getState(project);
         const host = state.url === "";
 
@@ -131,9 +116,8 @@ export class Project {
             // Load project files
             fileSystem = await FileSystem.init(project, state);
             if (state.staticVersion === 0 && state.dynamicVersion === 0) { // New project -> create .collabconfig file
-                const configUri = vscode.Uri.joinPath(folder, ".collabconfig");
                 const config = new Config(project.name, new FilesConfig());
-                vscode.workspace.fs.writeFile(configUri, new TextEncoder().encode(JSON.stringify(config, null, 4)));
+                vscode.workspace.fs.writeFile(fileUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
             }
             else { // Download from Google Drive
                 await fileSystem.download();
@@ -214,12 +198,7 @@ export class Project {
         if (!this.fileSystem) {
             throw new Error("Upload failed : no file system");
         }
-        const folder = vscode.workspace.workspaceFolders?.[0].uri;
-        if (!folder) {
-            throw new Error("Upload failed : no folder opened");
-        }
-        const configUri = vscode.Uri.joinPath(folder, ".collabconfig");
-        const config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(configUri))) as Config;
+        const config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collabconfig")))) as Config;
 
         await this.fileSystem.upload(config.filesConfig);
         if (clear) {
