@@ -3,6 +3,7 @@ import { GoogleDrive } from "./GoogleDrive";
 import { Project } from "./Project";
 import { LiveShare } from "./LiveShare";
 import { LaunchEditorProvider } from "./LaunchEditor";
+import { ConfigEditorProvider } from "./ConfigEditor";
 import { showErrorWrap } from "./util";
 
 
@@ -58,6 +59,8 @@ export async function activate(_context: vscode.ExtensionContext) {
     // Register editors
     const launchEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.launchEditor", new LaunchEditorProvider());
     context.subscriptions.push(launchEditor);
+    const configEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.configEditor", new ConfigEditorProvider());
+    context.subscriptions.push(configEditor);
 }
 
 
