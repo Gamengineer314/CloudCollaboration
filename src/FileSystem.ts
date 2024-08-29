@@ -16,11 +16,13 @@ export class FileSystem {
         private storageProject: StorageProject
     ) {}
 
+    public get State() : ProjectState { return this.state; }
+
 
     /**
      * @brief Initialize a new file system for a project
      * @param project The project
-     * @param state State of the project
+     * @param state Initial state of the project
     **/
     public static async init(project: GoogleDriveProject, state: ProjectState) : Promise<FileSystem> {
         // Default files for new projects

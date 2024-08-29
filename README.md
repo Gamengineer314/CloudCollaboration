@@ -1,12 +1,12 @@
 # Cloud Collaboration
 
 Cloud Collaboration provides real-time collaboration using the Live Share extension, with cloud storage on Google Drive.
-This allows any participants to easily start working on a project at any time.
+This allows any participant to easily start working on a project at any time.
 When connecting to a project, the extension will either join the Live Share session of another participant, or create a new one if needed.
 
 ## Dependencies
-The [Live Share](https://marketplace.visualstudio.com/items?itemName=MS-vsliveshare.vsliveshare) extension is required for EPLCollab to work.
-You will also need a Google account so the extension can access your Google Drive.
+- The [Live Share](https://marketplace.visualstudio.com/items?itemName=MS-vsliveshare.vsliveshare) extension
+- A Google account so the extension can access your Google Drive
 
 ## Usage
 - Authenticate : press Ctrl + Shift + p, then run the "Cloud Collaboration: Authenticate" command

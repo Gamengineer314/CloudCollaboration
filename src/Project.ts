@@ -14,8 +14,7 @@ export class Project {
     private intervalID : NodeJS.Timeout | undefined = undefined;
 
     private constructor(
-        private project: GoogleDriveProject, 
-        private state: ProjectState, 
+        private project: GoogleDriveProject,
         private host: boolean, 
         private fileSystem: FileSystem | null
     ) {}
@@ -28,7 +27,7 @@ export class Project {
         // Restore project state after a restart for joining a Live Share session
         const project = context.globalState.get<Project>("projectState");
         if (project) {
-            Project.instance = new Project(project.project, project.state, project.host, project.fileSystem);
+            Project.instance = new Project(project.project, project.host, project.fileSystem);
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             context.globalState.update("projectState", undefined);
             if (project.host) { // Start uploading files regularly
@@ -139,7 +138,7 @@ export class Project {
             }    
 
             // Set instance
-            Project.instance = new Project(project, state, host, fileSystem);
+            Project.instance = new Project(project, host, fileSystem);
             if (host) { // Start uploading files regularly
                 Project.instance.startUpload();
             }
@@ -171,7 +170,10 @@ export class Project {
             // Leave or end Live Share session
             await LiveShare.Instance.exitSession();
             if (Project.Instance.host) {
-                const state = Project.Instance.state;
+                if (!Project.Instance.fileSystem) {
+                    throw new Error("Disconnection failed : no file system");
+                }
+                const state = Project.Instance.fileSystem?.State;
                 state.url = "";
                 await GoogleDrive.Instance.setState(Project.Instance.project, state);
                 await Project.Instance.upload(true);
@@ -317,10 +319,17 @@ export class Project {
 
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Downloading project..." }, showErrorWrap(async () => {
             // Download files (without .collabconfig)
-            if (!this.fileSystem) {
-                throw new Error("Download failed : no file system");
+            if (this.fileSystem) {
+                await this.fileSystem.download(folder[0]);
             }
-            await this.fileSystem.download(folder[0]);
+            else {
+                if (!GoogleDrive.Instance) {
+                    throw new Error("Download failed : not authenticated");
+                }
+                const state = await GoogleDrive.Instance.getState(this.project);
+                const fileSytem = await FileSystem.init(this.project, state);
+                await fileSytem.download(folder[0]);
+            }
             await vscode.workspace.fs.delete(fileUri(".collabconfig", folder[0]));
             vscode.window.showInformationMessage("Project downloaded successfully");
         }));
