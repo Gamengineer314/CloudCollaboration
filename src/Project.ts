@@ -382,8 +382,11 @@ export class Project {
             config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collabconfig")))) as Config;
         }
         catch {
+            if (!GoogleDrive.Instance) {
+                throw new Error("Can't create config : not authenticated");
+            }
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
-            config = new Config(project.name, new FilesConfig(), new ShareConfig());
+            config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.Instance.getEmail()));
             Project.setConfig(config);
         }
         return config;
@@ -415,4 +418,6 @@ export class ShareConfig {
     public invites: Permission[] = [];
     public members: Permission[] = [];
     public public: Permission = new Permission("", "");
+
+    public constructor(public owner: string) {}
 }
