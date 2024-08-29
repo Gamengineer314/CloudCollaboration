@@ -121,21 +121,21 @@ export class Project {
                 // Load project files
                 fileSystem = await FileSystem.init(project, state);
                 await fileSystem.download();
-
-                // Add self to members and remove from invites
-                const config = await Project.getConfig();
-                const email = await GoogleDrive.Instance.getEmail();
-                const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
-                if (inviteIndex !== -1) {
-                    config.shareConfig.members.push(config.shareConfig.invites[inviteIndex]);
-                    config.shareConfig.invites.splice(inviteIndex, 1);
-                    await Project.setConfig(config);
-                }
             }
             else {
                 // Join Live Share session
                 await LiveShare.Instance.joinSession(state.url);
-            }    
+            }
+            
+            // Add self to members and remove from invites
+            const config = await Project.getConfig();
+            const email = await GoogleDrive.Instance.getEmail();
+            const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
+            if (inviteIndex !== -1) {
+                config.shareConfig.members.push(config.shareConfig.invites[inviteIndex]);
+                config.shareConfig.invites.splice(inviteIndex, 1);
+                await Project.setConfig(config);
+            }
 
             // Set instance
             Project.instance = new Project(project, host, fileSystem);
