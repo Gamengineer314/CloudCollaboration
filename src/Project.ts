@@ -3,7 +3,7 @@ import { GoogleDrive, GoogleDriveProject, Permission, ProjectState } from "./Goo
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { context } from "./extension";
-import { fileUri, listFolder } from "./util";
+import { fileUri, listFolder, showErrorWrap } from "./util";
 
 
 export class Project {
@@ -42,27 +42,29 @@ export class Project {
      * @brief Create a new project in the current folder
     **/
     public static async createProject() : Promise<void> {
-        // Check if folder is empty
-        const files = await listFolder();
-        if (files.length > 0) {
-            throw new Error("Can't create project : folder must be empty");
-        }
+        await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Creating project..." }, showErrorWrap(async () => {
+            // Check if folder is empty
+            const files = await listFolder();
+            if (files.length > 0) {
+                throw new Error("Can't create project : folder must be empty");
+            }
 
-        // Ask for project name
-        const name = await vscode.window.showInputBox({ prompt: "Project name" });
-        if (!name) {
-            throw new Error("Can't create project : no name provided");
-        }
+            // Ask for project name
+            const name = await vscode.window.showInputBox({ prompt: "Project name" });
+            if (!name) {
+                throw new Error("Can't create project : no name provided");
+            }
 
-        // Create project
-        if (!GoogleDrive.Instance) {
-            throw new Error("Can't create project : not authenticated");
-        }
-        const project = await GoogleDrive.Instance.createProject(name);
-        
-        // .collablaunch file
-        vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
-        vscode.window.showInformationMessage("Project created successfully");
+            // Create project
+            if (!GoogleDrive.Instance) {
+                throw new Error("Can't create project : not authenticated");
+            }
+            const project = await GoogleDrive.Instance.createProject(name);
+            
+            // .collablaunch file
+            vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            vscode.window.showInformationMessage("Project created successfully");
+        }));
     }
 
 
@@ -92,57 +94,59 @@ export class Project {
      * @brief Connect to the project in the current folder
     **/
     public static async connect() : Promise<void> {
-        // Check instances
-        if (!GoogleDrive.Instance) {
-            throw new Error("Connection failed : not authenticated");
-        }
-        if (Project.Instance) {
-            throw new Error("Connection failed : already connected");
-        }
-        if (!LiveShare.Instance) {
-            throw new Error("Connection failed : Live Share not initialized");
-        }
-
-        // Get project information from .collablaunch file
-        const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
-        const state = await GoogleDrive.Instance.getState(project);
-        const host = state.url === "";
-
-        let fileSystem = null;
-        if (host) {
-            // Create Live Share session
-            state.url = await LiveShare.Instance.createSession();
-            await GoogleDrive.Instance.setState(project, state);
-
-            // Load project files
-            fileSystem = await FileSystem.init(project, state);
-            await fileSystem.download();
-
-            // Add self to members and remove from invites
-            const config = await Project.getConfig();
-            const email = await GoogleDrive.Instance.getEmail();
-            const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
-            if (inviteIndex !== -1) {
-                config.shareConfig.members.push(config.shareConfig.invites[inviteIndex]);
-                config.shareConfig.invites.splice(inviteIndex, 1);
-                await Project.setConfig(config);
+        await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(async () => {
+            // Check instances
+            if (!GoogleDrive.Instance) {
+                throw new Error("Connection failed : not authenticated");
             }
-        }
-        else {
-            // Join Live Share session
-            await LiveShare.Instance.joinSession(state.url);
-        }    
+            if (Project.Instance) {
+                throw new Error("Connection failed : already connected");
+            }
+            if (!LiveShare.Instance) {
+                throw new Error("Connection failed : Live Share not initialized");
+            }
 
-        // Set instance
-        Project.instance = new Project(project, state, host, fileSystem);
-        if (host) { // Start uploading files regularly
-            Project.instance.startUpload();
-        }
-        else { // Save project state (the extension will restart when joining the Live Share session)
-            context.globalState.update("projectState", Project.instance);
-        }
+            // Get project information from .collablaunch file
+            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
+            const state = await GoogleDrive.Instance.getState(project);
+            const host = state.url === "";
 
-        vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+            let fileSystem = null;
+            if (host) {
+                // Create Live Share session
+                state.url = await LiveShare.Instance.createSession();
+                await GoogleDrive.Instance.setState(project, state);
+
+                // Load project files
+                fileSystem = await FileSystem.init(project, state);
+                await fileSystem.download();
+
+                // Add self to members and remove from invites
+                const config = await Project.getConfig();
+                const email = await GoogleDrive.Instance.getEmail();
+                const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
+                if (inviteIndex !== -1) {
+                    config.shareConfig.members.push(config.shareConfig.invites[inviteIndex]);
+                    config.shareConfig.invites.splice(inviteIndex, 1);
+                    await Project.setConfig(config);
+                }
+            }
+            else {
+                // Join Live Share session
+                await LiveShare.Instance.joinSession(state.url);
+            }    
+
+            // Set instance
+            Project.instance = new Project(project, state, host, fileSystem);
+            if (host) { // Start uploading files regularly
+                Project.instance.startUpload();
+            }
+            else { // Save project state (the extension will restart when joining the Live Share session)
+                context.globalState.update("projectState", Project.instance);
+            }
+
+            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+        }));
     }
 
 
@@ -150,29 +154,31 @@ export class Project {
      * @brief Disconnect from the project
     **/
     public static async disconnect() : Promise<void> {
-        // Check instances
-        if (!GoogleDrive.Instance) {
-            throw new Error("Disconnection failed : not authenticated");
-        }
-        if (!Project.Instance) {
-            throw new Error("Disconnection failed : not connected");
-        }
-        if (!LiveShare.Instance) {
-            throw new Error("Disconnection failed : Live Share not initialized");
-        }
+        await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Disconnecting from project..." }, showErrorWrap(async () => {
+            // Check instances
+            if (!GoogleDrive.Instance) {
+                throw new Error("Disconnection failed : not authenticated");
+            }
+            if (!Project.Instance) {
+                throw new Error("Disconnection failed : not connected");
+            }
+            if (!LiveShare.Instance) {
+                throw new Error("Disconnection failed : Live Share not initialized");
+            }
 
-        // Leave or end Live Share session
-        await LiveShare.Instance.exitSession();
-        if (Project.Instance.host) {
-            const state = Project.Instance.state;
-            state.url = "";
-            await GoogleDrive.Instance.setState(Project.Instance.project, state);
-            await Project.Instance.upload(true);
-        }
-        
-        Project.Instance.stopUpload();
-        Project.instance = undefined;
-        vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
+            // Leave or end Live Share session
+            await LiveShare.Instance.exitSession();
+            if (Project.Instance.host) {
+                const state = Project.Instance.state;
+                state.url = "";
+                await GoogleDrive.Instance.setState(Project.Instance.project, state);
+                await Project.Instance.upload(true);
+            }
+            
+            Project.Instance.stopUpload();
+            Project.instance = undefined;
+            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
+        }));
     }
 
 
@@ -295,7 +301,9 @@ export class Project {
      * @brief Start uploading files regularly to Google Drive
     **/
     private startUpload() : void {
-        this.intervalID = setInterval(this.upload.bind(this), 60_000);
+        this.intervalID = setInterval(showErrorWrap(async () => {
+            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Uploading to Google Drive..." }, showErrorWrap(async () => Project.Instance?.upload()));
+        }), 60_000);
     }
 
 
