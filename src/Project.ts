@@ -42,19 +42,19 @@ export class Project {
      * @brief Create a new project in the current folder
     **/
     public static async createProject() : Promise<void> {
+        // Check if folder is empty
+        const files = await listFolder();
+        if (files.length > 0) {
+            throw new Error("Can't create project : folder must be empty");
+        }
+
+        // Ask for project name
+        const name = await vscode.window.showInputBox({ prompt: "Project name" });
+        if (!name) {
+            throw new Error("Can't create project : no name provided");
+        }
+
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Creating project..." }, showErrorWrap(async () => {
-            // Check if folder is empty
-            const files = await listFolder();
-            if (files.length > 0) {
-                throw new Error("Can't create project : folder must be empty");
-            }
-
-            // Ask for project name
-            const name = await vscode.window.showInputBox({ prompt: "Project name" });
-            if (!name) {
-                throw new Error("Can't create project : no name provided");
-            }
-
             // Create project
             if (!GoogleDrive.Instance) {
                 throw new Error("Can't create project : not authenticated");
@@ -62,7 +62,8 @@ export class Project {
             const project = await GoogleDrive.Instance.createProject(name);
             
             // .collablaunch file
-            vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            await vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            vscode.commands.executeCommand("vscode.openWith", fileUri(".collablaunch"), "cloud-collaboration.launchEditor");
             vscode.window.showInformationMessage("Project created successfully");
         }));
     }
@@ -82,9 +83,10 @@ export class Project {
         if (!GoogleDrive.Instance) {
             throw new Error("Can't join project : not authenticated");
         }
-        await GoogleDrive.Instance.pickProject((project) => {
+        await GoogleDrive.Instance.pickProject(async (project) => {
             // .collablaunch file
-            vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            await vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            vscode.commands.executeCommand("vscode.openWith", fileUri(".collablaunch"), "cloud-collaboration.launchEditor");
             vscode.window.showInformationMessage("Project joined successfully");
         });
     }

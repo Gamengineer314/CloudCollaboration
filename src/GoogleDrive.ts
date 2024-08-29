@@ -183,7 +183,7 @@ export class GoogleDrive {
                     if (!folder.data.parents) {
                         return;
                     }
-                    callback(new GoogleDriveProject(folder.data.parents[0], dynamicID, staticID, stateID, name));
+                    await callback(new GoogleDriveProject(folder.data.parents[0], dynamicID, staticID, stateID, name));
                     result = "Project pick succeeded. You can close this tab and go back to VSCode.";
                 }
                 response.end("");
