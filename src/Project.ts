@@ -28,11 +28,9 @@ export class Project {
         const project = context.globalState.get<Project>("projectState");
         if (project) {
             Project.instance = new Project(project.project, project.host, project.fileSystem);
-            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             context.globalState.update("projectState", undefined);
-            if (project.host) { // Start uploading files regularly
-                Project.instance.startUpload();
-            }
+            Project.instance.addToMember();
+            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }
     }
 
@@ -121,33 +119,39 @@ export class Project {
                 // Load project files
                 fileSystem = await FileSystem.init(project, state);
                 await fileSystem.download();
+
+                // Create instance
+                Project.instance = new Project(project, host, fileSystem);
+                Project.instance.startUpload();
+
+                await Project.instance.addToMember();
             }
             else {
-                // Join Live Share session
-                await LiveShare.Instance.joinSession(state.url);
-            }
-            
-            // Add self to members and remove from invites
-            const config = await Project.getConfig();
-            const email = await GoogleDrive.Instance.getEmail();
-            const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
-            if (inviteIndex !== -1) {
-                config.shareConfig.members.push(config.shareConfig.invites[inviteIndex]);
-                config.shareConfig.invites.splice(inviteIndex, 1);
-                await Project.setConfig(config);
-            }
-
-            // Set instance
-            Project.instance = new Project(project, host, fileSystem);
-            if (host) { // Start uploading files regularly
-                Project.instance.startUpload();
-            }
-            else { // Save project state (the extension will restart when joining the Live Share session)
+                // Save project state and join Live Share session (the extension will restart)
                 context.globalState.update("projectState", Project.instance);
+                await LiveShare.Instance.joinSession(state.url);
             }
 
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }));
+    }
+
+
+    /**
+     * @brief Add the current user to the project members and remove it from the invites
+    **/
+    private async addToMember() : Promise<void> {
+        if (!GoogleDrive.Instance) {
+            throw new Error("Can't add to member : not authenticated");
+        }
+        const email = await GoogleDrive.Instance.getEmail();
+        const config = await Project.getConfig();
+        const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
+        if (inviteIndex !== -1) {
+            config.shareConfig.members.push(config.shareConfig.invites[inviteIndex]);
+            config.shareConfig.invites.splice(inviteIndex, 1);
+            await Project.setConfig(config);
+        }
     }
 
 
