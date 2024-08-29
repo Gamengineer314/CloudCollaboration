@@ -4,7 +4,7 @@ import { Server, createServer } from "http";
 import { context } from "./extension";
 import { CLIENT_ID, CLIENT_SECRET, PROJECT_NUMBER } from "./credentials";
 import { Readable } from "stream";
-import { randomString } from "./util";
+import { randomString, showErrorWrap } from "./util";
 
 
 const PORT = 31415;
@@ -65,7 +65,7 @@ export class GoogleDrive {
         const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
         const randomState = randomString(32);
         GoogleDrive.server?.close();
-        GoogleDrive.server = createServer(async (request, response) => {
+        GoogleDrive.server = createServer(showErrorWrap(async (request, response) => {
             // Ignore other calls (ex: icon)
             if (!request.url || request.url[1] !== "?") {
                 response.end("");
@@ -78,7 +78,7 @@ export class GoogleDrive {
             const state = url.searchParams.get("state");
             if (code && state === randomState) {
                 // Get refresh token from code
-                auth.getToken(code, (error, tokens) => {
+                auth.getToken(code, showErrorWrap((error, tokens) => {
                     if (error || !tokens || !tokens.refresh_token) {
                         vscode.window.showErrorMessage("Authentication failed : " + (error ? error.message : "no refresh token"));
                         response.end("Authentication failed : " + (error ? error.message : "no refresh token"));
@@ -91,7 +91,7 @@ export class GoogleDrive {
                         vscode.window.showInformationMessage("Authenticated to Google Drive");
                         response.end("Authentication succeeded. You can close this tab and go back to VSCode.");
                     }
-                });
+                }));
             }
             else {
                 vscode.window.showErrorMessage("Authentication failed. Please try again.");
@@ -99,7 +99,7 @@ export class GoogleDrive {
             }
             GoogleDrive.server?.close();
             GoogleDrive.server = undefined;
-        });
+        }));
 
         // Prompt URL
         const url = auth.generateAuthUrl({
@@ -108,7 +108,7 @@ export class GoogleDrive {
             state: randomState
         });
 
-        GoogleDrive.server.listen(PORT, async () => {
+        GoogleDrive.server.listen(PORT, showErrorWrap(async () => {
             // Open prompt
             vscode.window.showInformationMessage("Please authenticate in the page opened in your browser");
             const opened = await vscode.env.openExternal(vscode.Uri.parse(url));
@@ -117,7 +117,7 @@ export class GoogleDrive {
                 GoogleDrive.server?.close();
                 GoogleDrive.server = undefined;
             }
-        });
+        }));
     }
 
 
@@ -150,7 +150,7 @@ export class GoogleDrive {
     public async pickProject(callback: (project: GoogleDriveProject) => any ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
-        GoogleDrive.server = createServer(async (request, response) => {
+        GoogleDrive.server = createServer(showErrorWrap(async (request, response) => {
             if (!request.url) {
                 return;
             }
@@ -195,9 +195,9 @@ export class GoogleDrive {
                 GoogleDrive.server?.close();
                 GoogleDrive.server = undefined;
             }
-        });
+        }));
 
-        GoogleDrive.server.listen(PORT, async () => {
+        GoogleDrive.server.listen(PORT, showErrorWrap(async () => {
             // Open prompt
             vscode.window.showInformationMessage("Please pick a project in the page opened in your browser");
             const opened = await vscode.env.openExternal(vscode.Uri.parse(LOCALHOST));
@@ -206,7 +206,7 @@ export class GoogleDrive {
                 GoogleDrive.server?.close();
                 GoogleDrive.server = undefined;
             }
-        });
+        }));
     }
 
 

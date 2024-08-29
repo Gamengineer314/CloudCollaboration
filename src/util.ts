@@ -64,3 +64,21 @@ async function _recurListFolder(folder: vscode.Uri, subfolder: string = "") : Pr
     }
     return fileNames;
 }
+
+
+/**
+ * @brief Wrap a function to display errors
+ * @param action Function to wrap
+ * @returns Wrapped function
+**/
+export function showErrorWrap(action: ((...args: any) => any)) : (...args: any) => Promise<void> {
+    return async (...args) => {
+        try {
+            await action(...args);
+        }
+        catch (error : any) {
+            vscode.window.showErrorMessage(error.message);
+            console.error(error);
+        }
+    };
+}
