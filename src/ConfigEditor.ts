@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { randomString } from './util';
 import { Config, Project } from './Project';
 import { context } from './extension';
+import { GoogleDrive } from './GoogleDrive';
 
 
 export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
@@ -19,10 +20,23 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name);
 
         // Update webview function
-        function updateWebview() {
+        async function updateWebview() {
+            // Get the image uris
+            const crown = webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'crown.png'));
+            const trash = webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'trash.png'));
+
+            if (!GoogleDrive.Instance) {
+                throw(new Error("Config Editor load failed : not authenticated"));
+            }
+
             webviewPanel.webview.postMessage({ 
                 type: 'update',
-                config: project
+                config: project.shareConfig,
+                email: await GoogleDrive.Instance.getEmail(),
+                uris: {
+                    crown: crown.toString(),
+                    trash: trash.toString()
+                }
             });
         }
         // When the document changes, update the webview
@@ -82,6 +96,9 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
             </head>
             <body>
                 <h1>${name}</h1>
+                <h2>Project Members :</h2>
+
+                <div id="members"></div>
                 
                 <script nonce="${nonce}" src="${configEditorJs}"></script>
             </body>

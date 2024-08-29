@@ -13,7 +13,26 @@ h1 {
     padding: 0px 15px;
 }
 h2 {
-    color: #0078d4;
     font-size: 24px;
     padding: 5px 15px;
+}
+span {
+    font-size: 20px;
+    margin-right: 15px;
+    vertical-align: top;
+}
+
+#members {
+    padding: 0px 30px;
+}
+.icon {
+    width: 30px;
+    height: 30px;
+}
+
+.del_button {
+    background-color: #ff0000;
+}
+.del_button:hover {
+    background-color: #cc0000;
 }

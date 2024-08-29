@@ -188,12 +188,18 @@ export class Project {
 
     /**
      * @brief Share the project with a user
+     * @param email Email address of the user (default: prompt)
     **/
-    public async userShare() : Promise<void> {
-        // Ask for user email
-        const email = await vscode.window.showInputBox({ prompt: "User email" });
+    public async userShare(email: string = "") : Promise<void> {
         if (!email) {
-            throw new Error("User sharing failed : no email provided");
+            // Ask for user email
+            const input = await vscode.window.showInputBox({ prompt: "User email" });
+            if (input) {
+                email = input;
+            }
+            else {
+                throw new Error("User sharing failed : no email provided");
+            }
         }
 
         // Share project
@@ -218,12 +224,18 @@ export class Project {
 
     /**
      * @brief Cancel sharing of the project with a user
+     * @param email Email address of the user (default: prompt)
     **/
-    public async userUnshare() : Promise<void> {
-        // Ask for user email
-        const email = await vscode.window.showInputBox({ prompt: "User email" });
+    public async userUnshare(email: string = "") : Promise<void> {
         if (!email) {
-            throw new Error("User unsharing failed : no email provided");
+            // Ask for user email
+            const input = await vscode.window.showInputBox({ prompt: "User email" });
+            if (input) {
+                email = input;
+            }
+            else {
+                throw new Error("User sharing failed : no email provided");
+            }
         }
 
         // Remove user from invites and members
