@@ -300,6 +300,34 @@ export class Project {
 
 
     /**
+     * @brief Download files of the project to another folder
+    **/
+    public async download() : Promise<void> {
+        // Pick folder
+        const folder = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false });
+        if (!folder || folder.length === 0) {
+            throw new Error("Download failed : no folder selected");
+        }
+
+        // Check if folder is empty
+        const files = await listFolder(folder[0]);
+        if (files.length > 0) {
+            throw new Error("Download failed : folder must be empty");
+        }
+
+        await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Downloading project..." }, showErrorWrap(async () => {
+            // Download files (without .collabconfig)
+            if (!this.fileSystem) {
+                throw new Error("Download failed : no file system");
+            }
+            await this.fileSystem.download(folder[0]);
+            await vscode.workspace.fs.delete(fileUri(".collabconfig", folder[0]));
+            vscode.window.showInformationMessage("Project downloaded successfully");
+        }));
+    }
+
+
+    /**
      * @brief Start uploading files regularly to Google Drive
     **/
     private startUpload() : void {

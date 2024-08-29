@@ -54,6 +54,10 @@
       {
         "command": "cloud-collaboration.publicUnshare",
         "title": "Cloud Collaboration: Unshare Project (Public)"
+      },
+      {
+        "command": "cloud-collaboration.downloadProject",
+        "title": "Cloud Collaboration: Download Project"
       }
     ],
     "menus": {
@@ -96,6 +100,10 @@
         },
         {
           "command": "cloud-collaboration.publicUnshare",
+          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.downloadProject",
           "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
         }
       ]

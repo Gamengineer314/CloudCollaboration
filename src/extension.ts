@@ -7,7 +7,7 @@ import { showErrorWrap } from "./util";
 
 
 export let context : vscode.ExtensionContext;
-export let folder: vscode.Uri;
+export let currentFolder: vscode.Uri;
 export let storageFolder: vscode.Uri;
 
 
@@ -15,7 +15,7 @@ export let storageFolder: vscode.Uri;
 export async function activate(_context: vscode.ExtensionContext) {
 	context = _context;
     if (vscode.workspace.workspaceFolders) {
-        folder = vscode.workspace.workspaceFolders?.[0].uri;
+        currentFolder = vscode.workspace.workspaceFolders?.[0].uri;
     }
     if (context.storageUri) {
         storageFolder = context.storageUri;
@@ -52,6 +52,8 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(publicShare);
     const publicUnshare = vscode.commands.registerCommand("cloud-collaboration.publicUnshare", showErrorWrap(() => Project.Instance?.publicUnshare()));
     context.subscriptions.push(publicUnshare);
+    const downloadProject = vscode.commands.registerCommand("cloud-collaboration.downloadProject", showErrorWrap(() => Project.Instance?.download()));
+    context.subscriptions.push(downloadProject);
 
     // Register editors
     const launchEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.launchEditor", new LaunchEditorProvider());

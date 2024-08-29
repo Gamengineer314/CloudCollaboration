@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { folder, storageFolder } from "./extension";
+import { currentFolder, storageFolder } from "./extension";
 
 
 /**
@@ -17,11 +17,12 @@ export function randomString(size: number) : string {
 
 
 /**
- * @brief Get the URI of a file in the current folder
+ * @brief Get the URI of a file in a given folder
  * @param fileName Name of the file
+ * @param folder The folder (default: current folder)
 **/
-export function fileUri(fileName: string) : vscode.Uri {
-    return vscode.Uri.joinPath(folder, fileName);
+export function fileUri(fileName: string, folder: vscode.Uri | null = null) : vscode.Uri {
+    return vscode.Uri.joinPath(folder || currentFolder, fileName);
 }
 
 
@@ -35,11 +36,12 @@ export function storageFileUri(fileName: string) : vscode.Uri {
 
 
 /**
- * @brief List the files in the current folder
+ * @brief List the files in a given folder
+ * @param folder The folder (default: current folder)
  * @returns List of file names and types
 **/
-export async function listFolder() : Promise<[string, vscode.FileType][]> {
-    return await vscode.workspace.fs.readDirectory(folder);
+export async function listFolder(folder: vscode.Uri | null = null) : Promise<[string, vscode.FileType][]> {
+    return await vscode.workspace.fs.readDirectory(folder || currentFolder);
 }
 
 
@@ -47,7 +49,7 @@ export async function listFolder() : Promise<[string, vscode.FileType][]> {
  * @brief Recursively get the names (with sub-folder names) of all files in the current folder
 **/
 export function recurListFolder() : Promise<string[]> {
-    return _recurListFolder(folder);
+    return _recurListFolder(currentFolder);
 
 }
 
