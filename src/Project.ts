@@ -29,7 +29,7 @@ export class Project {
         if (project) {
             Project.instance = new Project(project.project, project.host, project.fileSystem);
             context.globalState.update("projectState", undefined);
-            Project.instance.addToMember();
+            await Project.instance.addToMember();
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }
     }
@@ -128,7 +128,7 @@ export class Project {
             }
             else {
                 // Save project state and join Live Share session (the extension will restart)
-                context.globalState.update("projectState", Project.instance);
+                context.globalState.update("projectState", new Project(project, host, fileSystem));
                 await LiveShare.Instance.joinSession(state.url);
             }
 
