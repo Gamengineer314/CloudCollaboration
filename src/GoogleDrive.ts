@@ -4,6 +4,7 @@ import { Server, createServer } from "http";
 import { context } from "./extension";
 import { CLIENT_ID, CLIENT_SECRET, PROJECT_NUMBER } from "./credentials";
 import { Readable } from "stream";
+import { randomString, showErrorWrap } from "./util";
 
 
 const PORT = 31415;
@@ -62,9 +63,9 @@ export class GoogleDrive {
 
         // Open prompt to authenticate and listen to localhost for redirection with code in URL parameters
         const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
-        const randomState = Math.random().toString(36).substring(2);
+        const randomState = randomString(32);
         GoogleDrive.server?.close();
-        GoogleDrive.server = createServer(async (request, response) => {
+        GoogleDrive.server = createServer(showErrorWrap(async (request, response) => {
             // Ignore other calls (ex: icon)
             if (!request.url || request.url[1] !== "?") {
                 response.end("");
@@ -77,7 +78,7 @@ export class GoogleDrive {
             const state = url.searchParams.get("state");
             if (code && state === randomState) {
                 // Get refresh token from code
-                auth.getToken(code, (error, tokens) => {
+                auth.getToken(code, showErrorWrap((error, tokens) => {
                     if (error || !tokens || !tokens.refresh_token) {
                         vscode.window.showErrorMessage("Authentication failed : " + (error ? error.message : "no refresh token"));
                         response.end("Authentication failed : " + (error ? error.message : "no refresh token"));
@@ -90,7 +91,7 @@ export class GoogleDrive {
                         vscode.window.showInformationMessage("Authenticated to Google Drive");
                         response.end("Authentication succeeded. You can close this tab and go back to VSCode.");
                     }
-                });
+                }));
             }
             else {
                 vscode.window.showErrorMessage("Authentication failed. Please try again.");
@@ -98,7 +99,7 @@ export class GoogleDrive {
             }
             GoogleDrive.server?.close();
             GoogleDrive.server = undefined;
-        });
+        }));
 
         // Prompt URL
         const url = auth.generateAuthUrl({
@@ -107,7 +108,7 @@ export class GoogleDrive {
             state: randomState
         });
 
-        GoogleDrive.server.listen(PORT, async () => {
+        GoogleDrive.server.listen(PORT, showErrorWrap(async () => {
             // Open prompt
             vscode.window.showInformationMessage("Please authenticate in the page opened in your browser");
             const opened = await vscode.env.openExternal(vscode.Uri.parse(url));
@@ -116,7 +117,7 @@ export class GoogleDrive {
                 GoogleDrive.server?.close();
                 GoogleDrive.server = undefined;
             }
-        });
+        }));
     }
 
 
@@ -132,12 +133,24 @@ export class GoogleDrive {
 
 
     /**
+     * @brief Get the email address of the authenticated user
+    **/
+    public async getEmail() : Promise<string> {
+        const user = await this.drive.about.get({ fields: "user" });
+        if (!user.data.user || !user.data.user.emailAddress) {
+            throw new Error("Failed to get user email");
+        }
+        return user.data.user.emailAddress;
+    }
+
+
+    /**
      * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
     **/
     public async pickProject(callback: (project: GoogleDriveProject) => any ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
-        GoogleDrive.server = createServer(async (request, response) => {
+        GoogleDrive.server = createServer(showErrorWrap(async (request, response) => {
             if (!request.url) {
                 return;
             }
@@ -170,7 +183,7 @@ export class GoogleDrive {
                     if (!folder.data.parents) {
                         return;
                     }
-                    callback(new GoogleDriveProject(folder.data.parents[0], dynamicID, staticID, stateID, name));
+                    await callback(new GoogleDriveProject(folder.data.parents[0], dynamicID, staticID, stateID, name));
                     result = "Project pick succeeded. You can close this tab and go back to VSCode.";
                 }
                 response.end("");
@@ -182,9 +195,9 @@ export class GoogleDrive {
                 GoogleDrive.server?.close();
                 GoogleDrive.server = undefined;
             }
-        });
+        }));
 
-        GoogleDrive.server.listen(PORT, async () => {
+        GoogleDrive.server.listen(PORT, showErrorWrap(async () => {
             // Open prompt
             vscode.window.showInformationMessage("Please pick a project in the page opened in your browser");
             const opened = await vscode.env.openExternal(vscode.Uri.parse(LOCALHOST));
@@ -193,7 +206,7 @@ export class GoogleDrive {
                 GoogleDrive.server?.close();
                 GoogleDrive.server = undefined;
             }
-        });
+        }));
     }
 
 
@@ -394,7 +407,6 @@ export class GoogleDrive {
      * @param staticFile Static files of the project
     **/
     public async setStatic(project: GoogleDriveProject, staticFile: Uint8Array) : Promise<void> {
-        const time = new Date().getTime();
         await this.drive.files.update({
             fileId: project.staticID,
             media: {
@@ -402,7 +414,64 @@ export class GoogleDrive {
                 body: Readable.from([staticFile])
             }
         });
-        console.log(new Date().getTime() - time);
+    }
+
+
+    /**
+     * @brief Share a project with a user
+     * @param project The project
+     * @param email Email of the user
+     * @returns Permission ID
+    **/
+    public async userShare(project: GoogleDriveProject, email: string) : Promise<Permission> {
+        const permission = await this.drive.permissions.create({
+            fileId: project.folderID,
+            requestBody: {
+                role: "writer",
+                type: "user",
+                emailAddress: email
+            },
+            fields: "id"
+        });
+        if (!permission.data.id) {
+            throw new Error("Failed to create permission");
+        }
+        return new Permission(email, permission.data.id);
+    }
+
+
+    /**
+     * @brief Share a project publicly
+     * @param project The project
+     * @returns Permission ID
+    **/
+    public async publicShare(project: GoogleDriveProject) : Promise<Permission> {
+        const permission = await this.drive.permissions.create({
+            fileId: project.folderID,
+            requestBody: {
+                role: "writer",
+                type: "anyone"
+            },
+            fields: "id"
+        });
+        if (!permission.data.id) {
+            throw new Error("Failed to create permission");
+        }
+        const url = await this.drive.files.get({ fileId: project.folderID, fields: "webViewLink" });
+        if (!url.data.webViewLink) {
+            throw new Error("Failed to get public link");
+        }
+        return new Permission(url.data.webViewLink, permission.data.id);
+    }
+
+
+    /**
+     * @brief Cancel sharing of a project
+     * @param project The project
+     * @param id The permission to cancel
+    **/
+    public async unshare(project: GoogleDriveProject, permission: Permission) : Promise<void> {
+        await this.drive.permissions.delete({ fileId: project.folderID, permissionId: permission.id });
     }
     
 }
@@ -416,6 +485,15 @@ export class GoogleDriveProject {
         public staticID: string, 
         public stateID: string, 
         public name: string
+    ) {}
+}
+
+
+
+export class Permission {
+    public constructor(
+        public name: string, // user email or public link
+        public id: string
     ) {}
 }
 

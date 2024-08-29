@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
-import { fileUri, storageFileUri, recurListFolder } from "./extension";
 import { FilesDeserializer, FilesSerializer } from "./FilesSerialization";
 import { match } from "./FileRules";
+import { fileUri, storageFileUri, recurListFolder } from "./util";
 
 
 export class FileSystem {
@@ -16,11 +16,13 @@ export class FileSystem {
         private storageProject: StorageProject
     ) {}
 
+    public get State() : ProjectState { return this.state; }
+
 
     /**
      * @brief Initialize a new file system for a project
      * @param project The project
-     * @param state State of the project
+     * @param state Initial state of the project
     **/
     public static async init(project: GoogleDriveProject, state: ProjectState) : Promise<FileSystem> {
         // Default files for new projects
@@ -43,9 +45,10 @@ export class FileSystem {
 
 
     /**
-     * @brief Download files from Google Drive to the current folder
+     * @brief Download files from Google Drive to a given folder
+     * @param folder The folder (default: current folder)
     **/
-    public async download() : Promise<void> {
+    public async download(folder: vscode.Uri | null = null) : Promise<void> {
         // Download files if they were changed
         if (!GoogleDrive.Instance) {
             throw new Error("Download failed : not authenticated");
@@ -67,15 +70,15 @@ export class FileSystem {
             staticFiles = await vscode.workspace.fs.readFile(storageFileUri("project.collabstatic"));
         }
 
-        // Load files in the workspace
+        // Load files in the folder
         for (const file of new FilesDeserializer(dynamicFiles)) {
-            await vscode.workspace.fs.writeFile(fileUri(file.name), file.content);
-            const time = (await vscode.workspace.fs.stat(fileUri(file.name))).mtime;
+            await vscode.workspace.fs.writeFile(fileUri(file.name, folder), file.content);
+            const time = (await vscode.workspace.fs.stat(fileUri(file.name, folder))).mtime;
             this.previousDynamic.set(file.name, time);
         }
         for (const file of new FilesDeserializer(staticFiles)) {
-            await vscode.workspace.fs.writeFile(fileUri(file.name), file.content);
-            const time = (await vscode.workspace.fs.stat(fileUri(file.name))).mtime;
+            await vscode.workspace.fs.writeFile(fileUri(file.name, folder), file.content);
+            const time = (await vscode.workspace.fs.stat(fileUri(file.name, folder))).mtime;
             this.previousStatic.set(file.name, time);
         }
     }
