@@ -212,6 +212,6 @@ class StorageProject {
 
 
 export class FilesConfig {
-    public staticRules: string[] = ["*.png", "*.jpg", "*.jpeg", "*.pdf", "*.svg"];
-    public ignoreRules: string[] = [".vscode/*"];
+    public staticRules: string[] = ["**.png", "**.jpg", "**.jpeg", "**.pdf", "**.svg"];
+    public ignoreRules: string[] = [".vscode/**"];
 }
