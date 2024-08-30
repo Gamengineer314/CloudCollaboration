@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, Permission, ProjectState } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
-import { context } from "./extension";
+import { context, currentFolder } from "./extension";
 import { fileUri, listFolder, showErrorWrap } from "./util";
 
 
@@ -26,13 +26,26 @@ export class Project {
     public static async activate() : Promise<void> {
         // Restore project state after a restart for joining a Live Share session
         const project = context.globalState.get<Project>("projectState");
-        if (project) {
+        const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
+        if (project) { // Connected to a project
             Project.instance = new Project(project.project, project.host, project.fileSystem);
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             context.globalState.update("projectState", undefined);
             if (project.host) { // Start uploading files regularly
                 Project.instance.startUpload();
             }
+            else { // Activate previous folder
+                if (previousFolder) {
+                    previousFolder.active = true;
+                    context.globalState.update("previousFolder", previousFolder);
+                }
+            }
+        }
+        else { // Come back to previous folder if activated
+            if (previousFolder && previousFolder.active) {
+                await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
+            }
+            context.globalState.update("previousFolder", new PreviousFolder(currentFolder.fsPath, false));
         }
     }
 
@@ -415,4 +428,12 @@ export class ShareConfig {
     public invites: Permission[] = [];
     public members: Permission[] = [];
     public public: Permission = new Permission("", "");
+}
+
+
+class PreviousFolder {
+    public constructor(
+        public path: string,
+        public active: boolean
+    ) {}
 }
