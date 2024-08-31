@@ -1,4 +1,4 @@
-
+const vscode = acquireVsCodeApi();
 
 
 function updateMembers(owner, members, invites, isOwner, uris) {
@@ -24,12 +24,12 @@ function updateMembers(owner, members, invites, isOwner, uris) {
     membersDiv.appendChild(ownerDiv);
 
     // Add all the members
-    members.forEach(member => {
+    for (let i = 0; i < members.length; i++) {
         // Create the div and the email span
         const memberDiv = document.createElement('div');
         memberDiv.style.paddingBottom = '15px';
         const email = document.createElement('span');
-        email.innerText = member.name;
+        email.innerText = members[i].name;
         memberDiv.appendChild(email);
         
         if (isOwner) {
@@ -39,21 +39,28 @@ function updateMembers(owner, members, invites, isOwner, uris) {
             removeButton.src = uris.trash;
             removeButton.classList.add('icon');
             removeButton.classList.add('del_button');
+
+            // Bind event listener to the remove button
+            removeButton.addEventListener('click', () => {
+                vscode.postMessage({
+                    type: 'remove_member',
+                    index: i
+                });
+            });
 
             memberDiv.appendChild(removeButton);
         }
 
         membersDiv.appendChild(memberDiv);
-    });
+    }
 
     // Add all the invites
-    // Add all the members
-    invites.forEach(member => {
+    for (let i = 0; i < invites.length; i++) {
         // Create the div and the email span
         const memberDiv = document.createElement('div');
         memberDiv.style.paddingBottom = '15px';
         const email = document.createElement('span');
-        email.innerText = member.name;
+        email.innerText = invites[i].name;
         memberDiv.appendChild(email);
         
         if (isOwner) {
@@ -63,6 +70,14 @@ function updateMembers(owner, members, invites, isOwner, uris) {
             removeButton.src = uris.trash;
             removeButton.classList.add('icon');
             removeButton.classList.add('del_button');
+
+            // Bind event listener to the remove button
+            removeButton.addEventListener('click', () => {
+                vscode.postMessage({
+                    type: 'remove_invite',
+                    index: i
+                });
+            });
 
             memberDiv.appendChild(removeButton);
         }
@@ -75,7 +90,7 @@ function updateMembers(owner, members, invites, isOwner, uris) {
         memberDiv.appendChild(pendingInvite);
 
         membersDiv.appendChild(memberDiv);
-    });
+    };
 }
 
 
@@ -90,4 +105,53 @@ window.addEventListener('message', event => {
             updateMembers(message.config.owner, message.config.members, message.config.invites, message.config.owner === message.email, message.uris);
             return;
     }
+});
+
+
+// Add members
+const addButton = document.getElementById('add_member');
+const addInput = document.getElementById('add_member_input');
+const confirmButton = document.getElementById('confirm_add');
+const cancelButton = document.getElementById('cancel_add');
+
+const addDiv = document.getElementById('add_member_div');
+
+addButton.addEventListener('click', () => {
+    // Remove the addButton and show the input, the confirm and the cancel buttons
+    addDiv.removeChild(addButton);
+    addInput.style.visibility = 'visible';
+    confirmButton.style.visibility = 'visible';
+    cancelButton.style.visibility = 'visible';
+});
+
+cancelButton.addEventListener('click', () => {
+    // Hide the input, the confirm and the cancel buttons and show the addButton
+    addInput.style.visibility = 'hidden';
+    confirmButton.style.visibility = 'hidden';
+    cancelButton.style.visibility = 'hidden';
+    addInput.value = '';
+
+    // Insert the addButton at the start of the div
+    addDiv.prepend(addButton);
+});
+
+confirmButton.addEventListener('click', () => {
+    // Send a message to the extension to add the member
+    vscode.postMessage({
+        type: 'add_member',
+        email: addInput.value
+    });
+
+    // Hide the input, the confirm and the cancel buttons and show the addButton
+    addInput.style.visibility = 'hidden';
+    confirmButton.style.visibility = 'hidden';
+    cancelButton.style.visibility = 'hidden';
+    addInput.value = '';
+    addDiv.prepend(addButton);
+});
+
+
+// Send a message to the extension to send an update, when the page is loaded
+vscode.postMessage({
+    type: 'on_load'
 });

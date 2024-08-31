@@ -25,11 +25,29 @@ span {
 #members {
     padding: 0px 30px;
 }
+#add_member_div {
+    margin-left: 30px;
+}
+#add_member_input {
+    width: 300px;
+    height: 30px;
+    font-size: 20px;
+    visibility: hidden;
+}
+#confirm_add {
+    visibility: hidden;
+}
+#cancel_add {
+    visibility: hidden;
+}
+
+.add_button {
+    padding: 5px 20px;
+}
 .icon {
     width: 30px;
     height: 30px;
 }
-
 .del_button {
     background-color: #ff0000;
 }
