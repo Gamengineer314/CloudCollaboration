@@ -192,51 +192,6 @@ export class Project {
         }));
     }
 
-    
-    /**
-     * @brief Share the project publicly
-    **/
-    public async publicShare() : Promise<void> {
-        // Share project
-        if (!GoogleDrive.Instance) {
-            throw new Error("Public sharing failed : not authenticated");
-        }
-        const permission = await GoogleDrive.Instance.publicShare(this.project);
-
-        // Add public permission
-        const config = await Project.getConfig();
-        if (config.shareConfig.public.name) {
-            throw new Error("Public sharing failed : public sharing already enabled");
-        }
-        config.shareConfig.public = permission;
-        await Project.setConfig(config);
-
-        vscode.window.showInformationMessage("Project shared successfully");
-    }
-
-
-    /**
-     * @brief Cancel sharing of the project publicly
-    **/
-    public async publicUnshare() : Promise<void> {
-        // Remove public permission
-        const config = await Project.getConfig();
-        if (!config.shareConfig.public.name) {
-            throw new Error("Public unsharing failed : public sharing not enabled");
-        }
-        const permission = config.shareConfig.public;
-        config.shareConfig.public = new Permission("", "");
-        await Project.setConfig(config);
-
-        // Unshare project
-        if (!GoogleDrive.Instance) {
-            throw new Error("Public unsharing failed : not authenticated");
-        }
-        await GoogleDrive.Instance.unshare(this.project, permission);
-
-        vscode.window.showInformationMessage("Project unshared successfully");
-    }
-
 
     /**
      * @brief Download files of the project to another folder
@@ -354,7 +309,7 @@ export class Config {
 export class ShareConfig {
     public invites: Permission[] = [];
     public members: Permission[] = [];
-    public public: Permission = new Permission("", "");
+    public public: Permission | null = null;
 
     public constructor(public owner: string) {}
 }

@@ -40,14 +40,6 @@
         "title": "Cloud Collaboration: Disconnect"
       },
       {
-        "command": "cloud-collaboration.publicShare",
-        "title": "Cloud Collaboration: Share Project (Public)"
-      },
-      {
-        "command": "cloud-collaboration.publicUnshare",
-        "title": "Cloud Collaboration: Unshare Project (Public)"
-      },
-      {
         "command": "cloud-collaboration.downloadProject",
         "title": "Cloud Collaboration: Download Project"
       }
@@ -76,14 +68,6 @@
         },
         {
           "command": "cloud-collaboration.disconnect",
-          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
-        },
-        {
-          "command": "cloud-collaboration.publicShare",
-          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
-        },
-        {
-          "command": "cloud-collaboration.publicUnshare",
           "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {

@@ -45,10 +45,6 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(connect);
     const disconnect = vscode.commands.registerCommand("cloud-collaboration.disconnect", showErrorWrap(Project.disconnect));
     context.subscriptions.push(disconnect);
-    const publicShare = vscode.commands.registerCommand("cloud-collaboration.publicShare", showErrorWrap(() => Project.Instance?.publicShare()));
-    context.subscriptions.push(publicShare);
-    const publicUnshare = vscode.commands.registerCommand("cloud-collaboration.publicUnshare", showErrorWrap(() => Project.Instance?.publicUnshare()));
-    context.subscriptions.push(publicUnshare);
     const downloadProject = vscode.commands.registerCommand("cloud-collaboration.downloadProject", showErrorWrap(() => Project.Instance?.download()));
     context.subscriptions.push(downloadProject);
 

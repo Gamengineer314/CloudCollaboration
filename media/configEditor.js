@@ -1,7 +1,7 @@
 const vscode = acquireVsCodeApi();
 
 
-function updateMembers(owner, members, invites, isOwner, uris) {
+function updateMembers(owner, members, invites, public, isOwner, uris) {
     // Get the members div
     const membersDiv = document.getElementById('members');
 
@@ -90,7 +90,20 @@ function updateMembers(owner, members, invites, isOwner, uris) {
         memberDiv.appendChild(pendingInvite);
 
         membersDiv.appendChild(memberDiv);
-    };
+    }
+
+    // Global sharing
+    if (public) {
+        globalSharingCheckbox.checked = true;
+        globalSharingText.style.visibility = 'visible';
+        copyButton.style.visibility = 'visible';
+        globalSharingLink.innerText = public.name;
+    } else {
+        globalSharingCheckbox.checked = false;
+        globalSharingText.style.visibility = 'hidden';
+        copyButton.style.visibility = 'hidden';
+        globalSharingLink.innerText = '';
+    }
 }
 
 
@@ -102,7 +115,7 @@ window.addEventListener('message', event => {
     const message = event.data;
     switch (message.type) {
         case 'update':
-            updateMembers(message.config.owner, message.config.members, message.config.invites, message.config.owner === message.email, message.uris);
+            updateMembers(message.config.owner, message.config.members, message.config.invites, message.config.public, message.config.owner === message.email, message.uris);
             return;
     }
 });
@@ -148,6 +161,26 @@ confirmButton.addEventListener('click', () => {
     cancelButton.style.visibility = 'hidden';
     addInput.value = '';
     addDiv.prepend(addButton);
+});
+
+
+// Global sharing
+const globalSharingCheckbox = document.getElementById('global_sharing');
+const globalSharingText = document.getElementById('global_sharing_text');
+const globalSharingLink = document.getElementById('global_sharing_link');
+const copyButton = document.getElementById('copy_button');
+
+globalSharingCheckbox.addEventListener('change', () => {
+    vscode.postMessage({
+        type: 'global_sharing',
+        checked: globalSharingCheckbox.checked
+    });
+});
+
+copyButton.addEventListener('click', () => {
+    vscode.postMessage({
+        type: 'copy_link'
+    });
 });
 
 

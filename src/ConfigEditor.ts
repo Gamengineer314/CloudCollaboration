@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { randomString, showErrorWrap } from './util';
 import { Config, Project } from './Project';
 import { context } from './extension';
-import { GoogleDrive, GoogleDriveProject } from './GoogleDrive';
+import { GoogleDrive, GoogleDriveProject, Permission } from './GoogleDrive';
 
 
 export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
@@ -73,6 +73,21 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                 case 'add_member':
                     await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Inviting member..." }, showErrorWrap(this.addMember.bind(this, e.email, project, document)));
                     return;
+                
+                case 'global_sharing':
+                    if (e.checked) {
+                        await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Enabling global sharing..." }, showErrorWrap(this.enableGlobalSharing.bind(this, project, document)));
+                    } else {
+                        await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Disabling global sharing..." }, showErrorWrap(this.disableGlobalSharing.bind(this, project, document)));
+                    }
+                    return;
+
+                case 'copy_link':
+                    if (project.shareConfig.public) {
+                        await vscode.env.clipboard.writeText(project.shareConfig.public.name);
+                        vscode.window.showInformationMessage("Link copied to clipboard");
+                    }
+                    return;
 			}
 		}));
     }
@@ -91,6 +106,8 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         // Get file paths
         const configEditorCss = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'configEditor.css'));
         const configEditorJs = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'configEditor.js'));
+        
+        const copyIcon = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'copy.png'));
 
         // Use a nonce to whitelist which scripts can be run
 		const nonce = randomString(32);
@@ -121,6 +138,12 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <button id="confirm_add" class="add_button">Add</button>
                     <button id="cancel_add" class="add_button">Cancel</button>
                 </div>
+
+                <h2>Global Sharing :</h2>
+                <input type="checkbox" id="global_sharing" />
+                <span id="global_sharing_text">Link :</span>
+                <img id="copy_button" class="icon" src="${copyIcon}" />
+                <span id="global_sharing_link"></span>
                 
                 <script nonce="${nonce}" src="${configEditorJs}"></script>
             </body>
@@ -233,5 +256,68 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 
         // Add little pop-up to confirm the addition
         vscode.window.showInformationMessage(`User ${email} added to project`);
+    }
+
+
+    /**
+     * @brief Enable global sharing for the project
+     * @param project Config object
+     * @param document vscode.TextDocument object
+    **/
+    private async enableGlobalSharing(project: Config, document: vscode.TextDocument) {
+        // Call google drive to enable global sharing
+        if (!GoogleDrive.Instance) {
+            throw new Error("Config Editor enableGlobalSharing failed : not authenticated");
+        }
+        if (!Project.Instance) {
+            throw new Error("Config Editor enableGlobalSharing failed : not connected");
+        }
+
+        const link = await GoogleDrive.Instance.publicShare(Project.Instance.Project);
+
+        // add the link to the shareConfig
+        project.shareConfig.public = link;
+
+        // Save the new config
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(project, null, 4));
+        vscode.workspace.applyEdit(edit);
+        await vscode.workspace.save(document.uri);
+
+        // Add little pop-up to confirm the addition
+        vscode.window.showInformationMessage(`Global sharing enabled for project`);
+    }
+
+
+    /**
+     * @brief Disable global sharing for the project
+     * @param project Config object
+     * @param document vscode.TextDocument object
+    **/
+    private async disableGlobalSharing(project: Config, document: vscode.TextDocument) {
+        // Call google drive to disable global sharing
+        if (!GoogleDrive.Instance) {
+            throw new Error("Config Editor disableGlobalSharing failed : not authenticated");
+        }
+        if (!Project.Instance) {
+            throw new Error("Config Editor disableGlobalSharing failed : not connected");
+        }
+        if (!project.shareConfig.public) {
+            throw new Error("Config Editor disableGlobalSharing failed : project not shared");
+        }
+
+        await GoogleDrive.Instance.unshare(Project.Instance.Project, project.shareConfig.public);
+
+        // remove the link from the shareConfig
+        project.shareConfig.public = null;
+
+        // Save the new config
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(project, null, 4));
+        vscode.workspace.applyEdit(edit);
+        await vscode.workspace.save(document.uri);
+
+        // Add little pop-up to confirm the addition
+        vscode.window.showInformationMessage(`Global sharing disabled for project`);
     }
 }
