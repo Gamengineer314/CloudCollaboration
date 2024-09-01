@@ -14,7 +14,8 @@ h1 {
 }
 h2 {
     font-size: 24px;
-    padding: 5px 15px;
+    padding: 0px 15px;
+    margin-bottom: 0px;
 }
 span {
     font-size: 20px;
@@ -25,9 +26,11 @@ span {
 
 #members {
     padding: 0px 30px;
+    margin-top: 20px;
 }
 #add_member_div {
     margin-left: 30px;
+    margin-bottom: 10px;
 }
 #add_member_input {
     width: 300px;
@@ -62,6 +65,31 @@ span {
 }
 #copy_button:hover {
     background-color: rgba(255, 255, 255, 0.3);
+}
+
+#gs_h, #gs_h+#help_div {
+    display: inline-block;
+}
+#help_div, #help_div+#help_text_div {
+    display: inline-block;
+}
+#help_icon {
+    width: 25px;
+    height: 25px;
+}
+#help_icon:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+#help_text {
+    font-size: 15px;
+    margin-left: 5px;
+    color: #9b9b9b;
+    vertical-align: 7px;
+    display: none;
+}
+
+#global_sharing_div {
+    margin-top: 20px;
 }
 
 .add_button {

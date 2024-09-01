@@ -108,6 +108,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         const configEditorJs = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'configEditor.js'));
         
         const copyIcon = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'copy.png'));
+        const helpIcon = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'help.png'));
 
         // Use a nonce to whitelist which scripts can be run
 		const nonce = randomString(32);
@@ -139,11 +140,22 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <button id="cancel_add" class="add_button">Cancel</button>
                 </div>
 
-                <h2>Global Sharing :</h2>
-                <input type="checkbox" id="global_sharing" />
-                <span id="global_sharing_text">Link :</span>
-                <img id="copy_button" class="icon" src="${copyIcon}" />
-                <span id="global_sharing_link"></span>
+                <h2 id="gs_h">Global Sharing :</h2>
+                <div id="help_div">
+                    <img id="help_icon" class="icon" src="${helpIcon}" />
+                </div>
+                <div id="help_text_div">
+                    <span id="help_text">Send this link with anyone you wish to share the project with. They can join the project in VSCode after opening the link.</span>
+                </div>
+
+                <div id="global_sharing_div">
+                    <input type="checkbox" id="global_sharing" />
+                    <span id="global_sharing_text">Link :</span>
+                    <img id="copy_button" class="icon" src="${copyIcon}" />
+                    <span id="global_sharing_link"></span>
+                </div>
+                
+                
                 
                 <script nonce="${nonce}" src="${configEditorJs}"></script>
             </body>

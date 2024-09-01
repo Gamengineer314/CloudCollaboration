@@ -111,7 +111,8 @@ export class Project {
             // Get project information from .collablaunch file
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
             const state = await GoogleDrive.Instance.getState(project);
-            const host = state.url === "";
+            //const host = state.url === "";
+            const host = true;
 
             let fileSystem = null;
             if (host) {

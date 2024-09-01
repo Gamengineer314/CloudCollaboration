@@ -170,6 +170,9 @@ const globalSharingText = document.getElementById('global_sharing_text');
 const globalSharingLink = document.getElementById('global_sharing_link');
 const copyButton = document.getElementById('copy_button');
 
+const helpIcon = document.getElementById('help_icon');
+const helpText = document.getElementById('help_text');
+
 globalSharingCheckbox.addEventListener('change', () => {
     vscode.postMessage({
         type: 'global_sharing',
@@ -183,6 +186,12 @@ copyButton.addEventListener('click', () => {
     });
 });
 
+helpIcon.addEventListener('mouseenter', () => {
+    helpText.style.display = 'initial';
+});
+helpIcon.addEventListener('mouseleave', () => {
+    helpText.style.display = 'none';
+});
 
 // Send a message to the extension to send an update, when the page is loaded
 vscode.postMessage({
