@@ -1,0 +1,153 @@
+button {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: none;
+    font-size: 24px;
+    padding: 10px 25px;
+}
+button:hover {
+    background-color: #026ec1;
+}
+h1 {
+    font-size: 30px;
+    padding: 0px 15px;
+    text-decoration: underline;
+}
+h2 {
+    font-size: 24px;
+    padding: 0px 15px;
+    margin-bottom: 0px;
+}
+span {
+    font-size: 20px;
+    margin-right: 15px;
+    vertical-align: top;
+}
+textarea {
+    width: 450px;
+    height: 300px;
+    font-size: 20px;
+    margin-left: 30px;
+    margin-top: 20px;
+    outline: none;
+    background: var(--vscode-settings-textInputBackground);
+    color: var(--vscode-settings-textInputForeground);
+    white-space: nowrap;
+    resize: none;
+}
+
+
+#members {
+    padding: 0px 30px;
+    margin-top: 20px;
+}
+#add_member_div {
+    margin-left: 30px;
+    margin-bottom: 10px;
+}
+#add_member_input {
+    width: 300px;
+    height: 30px;
+    font-size: 20px;
+    visibility: hidden;
+}
+#confirm_add {
+    visibility: hidden;
+}
+#cancel_add {
+    visibility: hidden;
+}
+#global_sharing {
+    accent-color: #0078d4;
+    margin-left: 30px;
+    width: 30px;
+    height: 30px;
+    border: none;
+    outline: none;
+}
+#global_sharing_text {
+    visibility: hidden;
+    margin-right: 5px;
+}
+#global_sharing_link {
+    color: #0078d4;
+}
+#copy_button {
+    vertical-align: top;
+    display: inline;
+}
+#copy_button:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+#global_sharing_div {
+    margin-top: 20px;
+}
+
+#ignored_save {
+    display: none;
+}
+
+#ignored_saved {
+    color: #0078d4;
+    vertical-align: 0px;
+    margin-left: 12px;
+    visibility: visible;
+}
+
+#ignored_save_div {
+    margin-top: 10px;
+    margin-left: 30px;
+}
+
+#static_save {
+    display: none;
+}
+
+#static_saved {
+    color: #0078d4;
+    vertical-align: 0px;
+    margin-left: 12px;
+    visibility: visible;
+}
+
+#static_save_div {
+    margin-top: 10px;
+    margin-left: 30px;
+}
+
+
+.help_h, .help_h+.help_div {
+    display: inline-block;
+}
+.help_div, .help_div+.help_text_div {
+    display: inline-block;
+}
+.help_icon {
+    width: 25px;
+    height: 25px;
+}
+.help_icon:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+.help_text {
+    font-size: 15px;
+    margin-left: 5px;
+    color: #9b9b9b;
+    vertical-align: 7px;
+    display: none;
+}
+
+.add_button {
+    padding: 5px 20px;
+}
+.icon {
+    width: 30px;
+    height: 30px;
+}
+.del_button {
+    background-color: #ff0000;
+}
+.del_button:hover {
+    background-color: #cc0000;
+}

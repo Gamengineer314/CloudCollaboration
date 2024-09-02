@@ -3,6 +3,7 @@ import { GoogleDrive } from "./GoogleDrive";
 import { Project } from "./Project";
 import { LiveShare } from "./LiveShare";
 import { LaunchEditorProvider } from "./LaunchEditor";
+import { ConfigEditorProvider } from "./ConfigEditor";
 import { showErrorWrap } from "./util";
 
 
@@ -44,20 +45,14 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(connect);
     const disconnect = vscode.commands.registerCommand("cloud-collaboration.disconnect", showErrorWrap(Project.disconnect));
     context.subscriptions.push(disconnect);
-    const userShare = vscode.commands.registerCommand("cloud-collaboration.userShare", showErrorWrap(() => Project.Instance?.userShare()));
-    context.subscriptions.push(userShare);
-    const userUnshare = vscode.commands.registerCommand("cloud-collaboration.userUnshare", showErrorWrap(() => Project.Instance?.userUnshare()));
-    context.subscriptions.push(userUnshare);
-    const publicShare = vscode.commands.registerCommand("cloud-collaboration.publicShare", showErrorWrap(() => Project.Instance?.publicShare()));
-    context.subscriptions.push(publicShare);
-    const publicUnshare = vscode.commands.registerCommand("cloud-collaboration.publicUnshare", showErrorWrap(() => Project.Instance?.publicUnshare()));
-    context.subscriptions.push(publicUnshare);
     const downloadProject = vscode.commands.registerCommand("cloud-collaboration.downloadProject", showErrorWrap(() => Project.Instance?.download()));
     context.subscriptions.push(downloadProject);
 
     // Register editors
     const launchEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.launchEditor", new LaunchEditorProvider());
     context.subscriptions.push(launchEditor);
+    const configEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.configEditor", new ConfigEditorProvider());
+    context.subscriptions.push(configEditor);
 }
 
 

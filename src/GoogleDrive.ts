@@ -19,13 +19,11 @@ export class GoogleDrive {
 
     private static server : Server | undefined; // Currently running localhost server
 
-
-    private auth : Auth.OAuth2Client;
     private drive : drive_v3.Drive;
+    private email : string | undefined = undefined;
 
-    private constructor(auth: Auth.OAuth2Client) {
-        this.auth = auth;
-        this.drive = new drive_v3.Drive({ auth: auth });
+    private constructor(private auth: Auth.OAuth2Client) {
+        this.drive = new drive_v3.Drive({ auth });
     }
 
 
@@ -78,18 +76,18 @@ export class GoogleDrive {
             const state = url.searchParams.get("state");
             if (code && state === randomState) {
                 // Get refresh token from code
-                auth.getToken(code, showErrorWrap((error, tokens) => {
-                    if (error || !tokens || !tokens.refresh_token) {
-                        vscode.window.showErrorMessage("Authentication failed : " + (error ? error.message : "no refresh token"));
-                        response.end("Authentication failed : " + (error ? error.message : "no refresh token"));
-                    }
-                    else {
+                auth.getToken(code, showErrorWrap(async (error, tokens) => {
+                    if (!error && tokens && tokens.refresh_token) {
                         auth.setCredentials(tokens);
                         context.secrets.store("googleRefreshToken", tokens.refresh_token);
                         GoogleDrive.instance = new GoogleDrive(auth);
                         vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", true);
                         vscode.window.showInformationMessage("Authenticated to Google Drive");
                         response.end("Authentication succeeded. You can close this tab and go back to VSCode.");
+                    }
+                    else {
+                        vscode.window.showErrorMessage("Authentication failed : " + (error ? error.message : "no refresh token"));
+                        response.end("Authentication failed : " + (error ? error.message : "no refresh token"));
                     }
                 }));
             }
@@ -129,18 +127,6 @@ export class GoogleDrive {
         GoogleDrive.instance = undefined;
         vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", false);
         vscode.window.showInformationMessage("Unauthenticated from Google Drive");
-    }
-
-
-    /**
-     * @brief Get the email address of the authenticated user
-    **/
-    public async getEmail() : Promise<string> {
-        const user = await this.drive.about.get({ fields: "user" });
-        if (!user.data.user || !user.data.user.emailAddress) {
-            throw new Error("Failed to get user email");
-        }
-        return user.data.user.emailAddress;
     }
 
 
@@ -258,6 +244,24 @@ export class GoogleDrive {
 <script async defer src="https://apis.google.com/js/api.js" onload="gapi.load('client:picker', createPicker)"></script>
 </body>
 </html>`;
+    }
+
+
+    /**
+     * @brief Get the email address of the authenticated user
+    **/
+    public async getEmail() : Promise<string> {
+        if (this.email) {
+            return this.email;
+        }
+        else {
+            const user = await this.drive.about.get({ fields: "user" });
+            if (!user.data.user || !user.data.user.emailAddress) {
+                throw new Error("Failed to get user email");
+            }
+            this.email = user.data.user.emailAddress;
+            return this.email;
+        }
     }
 
 

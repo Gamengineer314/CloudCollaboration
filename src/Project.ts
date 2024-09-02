@@ -4,6 +4,8 @@ import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { context, currentFolder } from "./extension";
 import { fileUri, listFolder, showErrorWrap } from "./util";
+import { json } from "stream/consumers";
+import { resolve } from "path";
 
 
 export class Project {
@@ -19,6 +21,7 @@ export class Project {
         private fileSystem: FileSystem | null
     ) {}
 
+    public get Project() : GoogleDriveProject { return this.project; }
 
     /**
      * @brief Activate Project class
@@ -29,17 +32,15 @@ export class Project {
         const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
         if (project) { // Connected to a project
             Project.instance = new Project(project.project, project.host, project.fileSystem);
-            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             context.globalState.update("projectState", undefined);
-            if (project.host) { // Start uploading files regularly
-                Project.instance.startUpload();
+            
+            if (previousFolder) { // Activate previous folder
+                previousFolder.active = true;
+                context.globalState.update("previousFolder", previousFolder);
             }
-            else { // Activate previous folder
-                if (previousFolder) {
-                    previousFolder.active = true;
-                    context.globalState.update("previousFolder", previousFolder);
-                }
-            }
+
+            await Project.instance.addToMember();
+            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }
         else { // Come back to previous folder if activated
             if (previousFolder && previousFolder.active) {
@@ -123,7 +124,8 @@ export class Project {
             // Get project information from .collablaunch file
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
             const state = await GoogleDrive.Instance.getState(project);
-            const host = state.url === "";
+            //const host = state.url === "";
+            const host = true;
 
             let fileSystem = null;
             if (host) {
@@ -135,32 +137,38 @@ export class Project {
                 fileSystem = await FileSystem.init(project, state);
                 await fileSystem.download();
 
-                // Add self to members and remove from invites
-                const config = await Project.getConfig();
-                const email = await GoogleDrive.Instance.getEmail();
-                const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
-                if (inviteIndex !== -1) {
-                    config.shareConfig.members.push(config.shareConfig.invites[inviteIndex]);
-                    config.shareConfig.invites.splice(inviteIndex, 1);
-                    await Project.setConfig(config);
-                }
+                // Create instance
+                Project.instance = new Project(project, host, fileSystem);
+                Project.instance.startUpload();
+
+                await Project.instance.addToMember();
             }
             else {
-                // Join Live Share session
+                // Save project state and join Live Share session (the extension will restart)
+                context.globalState.update("projectState", new Project(project, host, fileSystem));
                 await LiveShare.Instance.joinSession(state.url);
-            }    
-
-            // Set instance
-            Project.instance = new Project(project, host, fileSystem);
-            if (host) { // Start uploading files regularly
-                Project.instance.startUpload();
-            }
-            else { // Save project state (the extension will restart when joining the Live Share session)
-                context.globalState.update("projectState", Project.instance);
             }
 
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }));
+    }
+
+
+    /**
+     * @brief Add the current user to the project members and remove it from the invites
+    **/
+    private async addToMember() : Promise<void> {
+        if (!GoogleDrive.Instance) {
+            throw new Error("Can't add to member : not authenticated");
+        }
+        const email = await GoogleDrive.Instance.getEmail();
+        const config = await Project.getConfig();
+        const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
+        if (inviteIndex !== -1) {
+            config.shareConfig.members.push(config.shareConfig.invites[inviteIndex]);
+            config.shareConfig.invites.splice(inviteIndex, 1);
+            await Project.setConfig(config);
+        }
     }
 
 
@@ -196,121 +204,6 @@ export class Project {
             Project.instance = undefined;
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
         }));
-    }
-
-
-    /**
-     * @brief Share the project with a user
-    **/
-    public async userShare() : Promise<void> {
-        // Ask for user email
-        const email = await vscode.window.showInputBox({ prompt: "User email" });
-        if (!email) {
-            throw new Error("User sharing failed : no email provided");
-        }
-
-        // Share project
-        if (!GoogleDrive.Instance) {
-            throw new Error("User sharing failed : not authenticated");
-        }
-        const permission = await GoogleDrive.Instance.userShare(this.project, email);
-
-        // Add user to invites
-        const config = await Project.getConfig();
-        if (config.shareConfig.invites.some(invite => invite.name === email) && !config.shareConfig.members.some(member => member.name === email)) {
-            throw new Error("User sharing failed : already shared with this user");
-        }
-        else {
-            config.shareConfig.invites.push(permission);
-            await Project.setConfig(config);
-        }
-
-        vscode.window.showInformationMessage("Project shared successfully");
-    }
-
-
-    /**
-     * @brief Cancel sharing of the project with a user
-    **/
-    public async userUnshare() : Promise<void> {
-        // Ask for user email
-        const email = await vscode.window.showInputBox({ prompt: "User email" });
-        if (!email) {
-            throw new Error("User unsharing failed : no email provided");
-        }
-
-        // Remove user from invites and members
-        const config = await Project.getConfig();
-        let permission: Permission;
-        const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
-        if (inviteIndex !== -1) {
-            permission = config.shareConfig.invites[inviteIndex];
-            config.shareConfig.invites.splice(inviteIndex, 1);
-        }
-        else {
-            const memberIndex = config.shareConfig.members.findIndex(member => member.name === email);
-            if (memberIndex !== -1) {
-                permission = config.shareConfig.members[memberIndex];
-                config.shareConfig.members.splice(memberIndex, 1);
-            }
-            else {
-                throw new Error("User unsharing failed : not shared with this user");
-            }
-        }
-        await Project.setConfig(config);
-
-        // Unshare project
-        if (!GoogleDrive.Instance) {
-            throw new Error("User unsharing failed : not authenticated");
-        }
-        await GoogleDrive.Instance.unshare(this.project, permission);
-
-        vscode.window.showInformationMessage("Project unshared successfully");
-    }
-
-
-    /**
-     * @brief Share the project publicly
-    **/
-    public async publicShare() : Promise<void> {
-        // Share project
-        if (!GoogleDrive.Instance) {
-            throw new Error("Public sharing failed : not authenticated");
-        }
-        const permission = await GoogleDrive.Instance.publicShare(this.project);
-
-        // Add public permission
-        const config = await Project.getConfig();
-        if (config.shareConfig.public.name) {
-            throw new Error("Public sharing failed : public sharing already enabled");
-        }
-        config.shareConfig.public = permission;
-        await Project.setConfig(config);
-
-        vscode.window.showInformationMessage("Project shared successfully");
-    }
-
-
-    /**
-     * @brief Cancel sharing of the project publicly
-    **/
-    public async publicUnshare() : Promise<void> {
-        // Remove public permission
-        const config = await Project.getConfig();
-        if (!config.shareConfig.public.name) {
-            throw new Error("Public unsharing failed : public sharing not enabled");
-        }
-        const permission = config.shareConfig.public;
-        config.shareConfig.public = new Permission("", "");
-        await Project.setConfig(config);
-
-        // Unshare project
-        if (!GoogleDrive.Instance) {
-            throw new Error("Public unsharing failed : not authenticated");
-        }
-        await GoogleDrive.Instance.unshare(this.project, permission);
-
-        vscode.window.showInformationMessage("Project unshared successfully");
     }
 
 
@@ -395,8 +288,11 @@ export class Project {
             config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collabconfig")))) as Config;
         }
         catch {
+            if (!GoogleDrive.Instance) {
+                throw new Error("Can't create config : not authenticated");
+            }
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
-            config = new Config(project.name, new FilesConfig(), new ShareConfig());
+            config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.Instance.getEmail()));
             Project.setConfig(config);
         }
         return config;
@@ -426,8 +322,10 @@ export class Config {
 
 export class ShareConfig {
     public invites: Permission[] = [];
-    public members: Permission[] = [];
-    public public: Permission = new Permission("", "");
+    public members: Permission[] = []
+    public public: Permission | null = null;
+
+    public constructor(public owner: string) {}
 }
 
 
