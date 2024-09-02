@@ -104,6 +104,37 @@ function updateMembers(owner, members, invites, public, isOwner, uris) {
         copyButton.style.visibility = 'hidden';
         globalSharingLink.innerText = '';
     }
+
+    // Load the inputs from the storage
+    const state = vscode.getState();
+    if (state) {
+        ignoredInput.value = state.ignored;
+        staticInput.value = state.static;
+
+        if (!state.ignored_saved) {
+            modifiedIgnore();
+        }
+        if (!state.static_saved) {
+            modifiedStatic();
+        }
+    }
+}
+
+
+function loadInputs(ignored, static) {
+    // ignored and staticFiles are arrays of lines, we need to join them
+    const ignoredText = ignored.join('\n');
+    const staticText = static.join('\n');
+    ignoredInput.value = ignoredText;
+    staticInput.value = staticText;
+
+    // Load inputs in the storage
+    vscode.setState({
+        ignored: ignoredText,
+        static: staticText,
+        ignored_saved: true,
+        static_saved: true
+    });
 }
 
 
@@ -117,6 +148,8 @@ window.addEventListener('message', event => {
         case 'update':
             updateMembers(message.config.owner, message.config.members, message.config.invites, message.config.public, message.config.owner === message.email, message.uris);
             return;
+        case 'load_inputs':
+            loadInputs(message.ignored, message.static);
     }
 });
 
@@ -170,9 +203,6 @@ const globalSharingText = document.getElementById('global_sharing_text');
 const globalSharingLink = document.getElementById('global_sharing_link');
 const copyButton = document.getElementById('copy_button');
 
-const helpIcon = document.getElementById('help_icon');
-const helpText = document.getElementById('help_text');
-
 globalSharingCheckbox.addEventListener('change', () => {
     vscode.postMessage({
         type: 'global_sharing',
@@ -186,12 +216,114 @@ copyButton.addEventListener('click', () => {
     });
 });
 
-helpIcon.addEventListener('mouseenter', () => {
-    helpText.style.display = 'initial';
+
+
+// Help messages
+const gsHelpIcon = document.getElementById('gs_help_icon');
+const gsHelpText = document.getElementById('gs_help_text');
+const ifHelpIcon = document.getElementById('if_help_icon');
+const ifHelpText = document.getElementById('if_help_text');
+const sfHelpIcon = document.getElementById('sf_help_icon');
+const sfHelpText = document.getElementById('sf_help_text');
+
+gsHelpIcon.addEventListener('mouseenter', () => {
+    gsHelpText.style.display = 'inline-flex';
 });
-helpIcon.addEventListener('mouseleave', () => {
-    helpText.style.display = 'none';
+gsHelpIcon.addEventListener('mouseleave', () => {
+    gsHelpText.style.display = 'none';
 });
+ifHelpIcon.addEventListener('mouseenter', () => {
+    ifHelpText.style.display = 'inline-flex';
+});
+ifHelpIcon.addEventListener('mouseleave', () => {
+    ifHelpText.style.display = 'none';
+});
+sfHelpIcon.addEventListener('mouseenter', () => {
+    sfHelpText.style.display = 'inline-flex';
+});
+sfHelpIcon.addEventListener('mouseleave', () => {
+    sfHelpText.style.display = 'none';
+});
+
+
+
+// Text areas
+const ignoredInput = document.getElementById('ignored_input');
+const staticInput = document.getElementById('static_input');
+const ignoredSave = document.getElementById('ignored_save');
+const ignoredSaved = document.getElementById('ignored_saved');
+const staticSave = document.getElementById('static_save');
+const staticSaved = document.getElementById('static_saved');
+
+// Save buttons
+function saveIgnore() {
+    vscode.postMessage({
+        type: 'save_ignored',
+        value: ignoredInput.value.split('\n')
+    });
+    ignoredSaved.style.visibility = 'visible';
+    ignoredSave.style.display = 'none';
+
+    const state = vscode.getState();
+    vscode.setState({
+        ignored: state.ignored,
+        static: state.static,
+        ignored_saved: true,
+        static_saved: state.static_saved
+    });
+}
+function saveStatic() {
+    vscode.postMessage({
+        type: 'save_static',
+        value: staticInput.value.split('\n')
+    });
+    staticSaved.style.visibility = 'visible';
+    staticSave.style.display = 'none';
+
+    const state = vscode.getState();
+    vscode.setState({
+        ignored: state.ignored,
+        static: state.static,
+        ignored_saved: state.ignored_saved,
+        static_saved: true
+    });
+}
+function modifiedIgnore() {
+    ignoredSaved.style.visibility = 'hidden';
+    ignoredSave.style.display = 'initial';
+}
+function modifiedStatic() {
+    staticSaved.style.visibility = 'hidden';
+    staticSave.style.display = 'initial';
+}
+
+ignoredSave.addEventListener('click', saveIgnore);
+staticSave.addEventListener('click', saveStatic);
+
+// Update the storage when the inputs change
+ignoredInput.addEventListener('input', () => {
+    const state = vscode.getState();
+    vscode.setState({
+        ignored: ignoredInput.value,
+        static: staticInput.value,
+        ignored_saved: false,
+        static_saved: state.static_saved
+    });
+    modifiedIgnore();
+});
+staticInput.addEventListener('input', () => {
+    const state = vscode.getState();
+    vscode.setState({
+        ignored: ignoredInput.value,
+        static: staticInput.value,
+        ignored_saved: state.ignored_saved,
+        static_saved: false
+    });
+    modifiedStatic();
+});
+
+
+
 
 // Send a message to the extension to send an update, when the page is loaded
 vscode.postMessage({

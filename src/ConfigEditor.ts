@@ -43,6 +43,15 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
             });
         }
 
+        // Load the inputs function
+        function loadInputs() {
+            webviewPanel.webview.postMessage({ 
+                type: 'load_inputs',
+                ignored: project.filesConfig.ignoreRules,
+                static: project.filesConfig.staticRules
+            });
+        }
+
 
         // When the document changes, update the webview
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
@@ -88,8 +97,19 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                         vscode.window.showInformationMessage("Link copied to clipboard");
                     }
                     return;
+                
+                case 'save_ignored':
+                    this.saveIgnored(e.value, project, document);
+                    return;
+
+                case 'save_static':
+                    this.saveStatic(e.value, project, document);
+                    return;
 			}
 		}));
+
+        // Load inputs the first time the webview is opened
+        loadInputs();
     }
 
 
@@ -140,12 +160,13 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <button id="cancel_add" class="add_button">Cancel</button>
                 </div>
 
-                <h2 id="gs_h">Global Sharing :</h2>
-                <div id="help_div">
-                    <img id="help_icon" class="icon" src="${helpIcon}" />
+
+                <h2 class="help_h">Global Sharing :</h2>
+                <div class="help_div">
+                    <img id="gs_help_icon" class="help_icon" src="${helpIcon}" />
                 </div>
-                <div id="help_text_div">
-                    <span id="help_text">Send this link with anyone you wish to share the project with. They can join the project in VSCode after opening the link.</span>
+                <div class="help_div">
+                    <span id="gs_help_text" class="help_text">Send this link with anyone you wish to share the project with. They can join the project in VSCode after opening the link.</span>
                 </div>
 
                 <div id="global_sharing_div">
@@ -153,6 +174,37 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <span id="global_sharing_text">Link :</span>
                     <img id="copy_button" class="icon" src="${copyIcon}" />
                     <span id="global_sharing_link"></span>
+                </div>
+
+
+                <h2 class="help_h">Ignored Files :</h2>
+                <div class="help_div">
+                    <img id="if_help_icon" class="help_icon" src="${helpIcon}" />
+                </div>
+                <div class="help_div">
+                    <span id="if_help_text" class="help_text">List of rules determining which files are ignored. A rule is a path that may contain special characters :<br/>- ? = any character<br/>- [abc] = a, b or c<br/>- * = any sequence of characters except '/'<br/>- ** = any sequence of characters<br/>- If a rule starts with '!', it excludes files instead of including them.</span>
+                </div>
+
+                <div><textarea id="ignored_input" type="text" placeholder="Ignored file rules"></textarea></div>
+                <div id="ignored_save_div">
+                    <button id="ignored_save" class="add_button">Save</button>
+                    <span id="ignored_saved">Saved</span>
+                </div>
+
+                
+
+                <h2 class="help_h">Static Files :</h2>
+                <div class="help_div">
+                    <img id="sf_help_icon" class="help_icon" src="${helpIcon}" />
+                </div>
+                <div class="help_div">
+                    <span id="sf_help_text" class="help_text">List of rules determining which files are static. A rule is a path that may contain special characters :<br/>- ? = any character<br/>- [abc] = a, b or c<br/>- * = any sequence of characters except '/'<br/>- ** = any sequence of characters<br/>- If a rule starts with '!', it excludes files instead of including them.</span>
+                </div>
+
+                <div><textarea id="static_input" type="text" placeholder="Static file rules"></textarea></div>
+                <div id="static_save_div">
+                    <button id="static_save" class="add_button">Save</button>
+                    <span id="static_saved">Saved</span>
                 </div>
                 
                 
@@ -331,5 +383,35 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 
         // Add little pop-up to confirm the addition
         vscode.window.showInformationMessage(`Global sharing disabled for project`);
+    }
+
+
+    /**
+     * @brief Save the ignored files rules
+     * @param text The text in the ignored files textarea
+     * @param project Config object
+     * @param document vscode.TextDocument object
+    **/
+    private async saveIgnored(text: string[], project: Config, document: vscode.TextDocument) {
+        project.filesConfig.ignoreRules = text;
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(project, null, 4));
+        vscode.workspace.applyEdit(edit);
+        await vscode.workspace.save(document.uri);
+    }
+
+
+    /**
+     * @brief Save the static files rules
+     * @param text The text in the static files textarea
+     * @param project Config object
+     * @param document vscode.TextDocument object
+    **/
+    private async saveStatic(text: string[], project: Config, document: vscode.TextDocument) {
+        project.filesConfig.staticRules = text;
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(project, null, 4));
+        vscode.workspace.applyEdit(edit);
+        await vscode.workspace.save(document.uri);
     }
 }

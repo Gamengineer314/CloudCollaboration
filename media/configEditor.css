@@ -11,6 +11,7 @@ button:hover {
 h1 {
     font-size: 30px;
     padding: 0px 15px;
+    text-decoration: underline;
 }
 h2 {
     font-size: 24px;
@@ -21,6 +22,18 @@ span {
     font-size: 20px;
     margin-right: 15px;
     vertical-align: top;
+}
+textarea {
+    width: 450px;
+    height: 300px;
+    font-size: 20px;
+    margin-left: 30px;
+    margin-top: 20px;
+    outline: none;
+    background: var(--vscode-settings-textInputBackground);
+    color: var(--vscode-settings-textInputForeground);
+    white-space: nowrap;
+    resize: none;
 }
 
 
@@ -67,29 +80,62 @@ span {
     background-color: rgba(255, 255, 255, 0.3);
 }
 
-#gs_h, #gs_h+#help_div {
+#global_sharing_div {
+    margin-top: 20px;
+}
+
+#ignored_save {
+    display: none;
+}
+
+#ignored_saved {
+    color: #0078d4;
+    vertical-align: 0px;
+    margin-left: 12px;
+    visibility: visible;
+}
+
+#ignored_save_div {
+    margin-top: 10px;
+    margin-left: 30px;
+}
+
+#static_save {
+    display: none;
+}
+
+#static_saved {
+    color: #0078d4;
+    vertical-align: 0px;
+    margin-left: 12px;
+    visibility: visible;
+}
+
+#static_save_div {
+    margin-top: 10px;
+    margin-left: 30px;
+}
+
+
+.help_h, .help_h+.help_div {
     display: inline-block;
 }
-#help_div, #help_div+#help_text_div {
+.help_div, .help_div+.help_text_div {
     display: inline-block;
 }
-#help_icon {
+.help_icon {
     width: 25px;
     height: 25px;
 }
-#help_icon:hover {
+.help_icon:hover {
     background-color: rgba(255, 255, 255, 0.15);
 }
-#help_text {
+.help_text {
     font-size: 15px;
     margin-left: 5px;
     color: #9b9b9b;
     vertical-align: 7px;
     display: none;
-}
-
-#global_sharing_div {
-    margin-top: 20px;
 }
 
 .add_button {
