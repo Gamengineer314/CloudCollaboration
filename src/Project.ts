@@ -4,8 +4,6 @@ import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { context, currentFolder } from "./extension";
 import { fileUri, listFolder, showErrorWrap } from "./util";
-import { json } from "stream/consumers";
-import { resolve } from "path";
 
 
 export class Project {
@@ -292,7 +290,7 @@ export class Project {
         }
         return config;
     }
-    
+
 }
 
 

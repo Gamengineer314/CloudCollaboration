@@ -175,7 +175,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <img id="gs_help_icon" class="help_icon" src="${helpIcon}" />
                 </div>
                 <div class="help_div">
-                    <span id="gs_help_text" class="help_text">Send this link with anyone you wish to share the project with. They can join the project in VSCode after opening the link.</span>
+                    <span id="gs_help_text" class="help_text">Send this link to anyone you wish to share the project with. They can join the project in VSCode after opening the link.</span>
                 </div>
 
                 <div id="global_sharing_div">
