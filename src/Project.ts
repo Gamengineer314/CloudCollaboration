@@ -39,6 +39,16 @@ export class Project {
                 context.globalState.update("previousFolder", previousFolder);
             }
 
+            // Open config the first time
+            if (!GoogleDrive.Instance) {
+                throw new Error("Can't connect to project : not authenticated");
+            }
+            const config = await this.getConfig();
+            const email = await GoogleDrive.Instance.getEmail();
+            if (config.shareConfig.members.every(member => member.name !== email) && config.shareConfig.publicMembers.every(member => member !== email) && email !== config.shareConfig.owner) {
+                vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
+            }
+
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }
         else { // Come back to previous folder if activated
@@ -123,8 +133,7 @@ export class Project {
             // Get project information from .collablaunch file
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
             const state = await GoogleDrive.Instance.getState(project);
-            //const host = state.url === "";
-            const host = true;
+            const host = state.url === "";
 
             let fileSystem = null;
             if (host) {
@@ -140,8 +149,12 @@ export class Project {
                 Project.instance = new Project(project, host, fileSystem);
                 Project.instance.startUpload();
 
-                // Create config if it doesn't exist
-                await this.getConfig();
+                // Open config the first time
+                const config = await this.getConfig();
+                const email = await GoogleDrive.Instance.getEmail();
+                if (config.shareConfig.members.every(member => member.name !== email) && config.shareConfig.publicMembers.every(member => member !== email) && email !== config.shareConfig.owner) {
+                    vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
+                }
             }
             else {
                 // Save project state and join Live Share session (the extension will restart)
@@ -275,19 +288,11 @@ export class Project {
             }
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
             config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.Instance.getEmail()));
-            Project.setConfig(config);
+            await vscode.workspace.fs.writeFile(fileUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
         }
         return config;
     }
-
-
-    /**
-     * @brief Set the config file in the current folder
-    **/
-    private static async setConfig(config: Config) : Promise<void> {
-        await vscode.workspace.fs.writeFile(fileUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
-    }
-
+    
 }
 
 
