@@ -53,7 +53,7 @@ export class Project {
             if (previousFolder && previousFolder.active) {
                 await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
             }
-            context.globalState.update("previousFolder", new PreviousFolder(currentFolder.fsPath, false));
+            context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path, false));
         }
     }
 
