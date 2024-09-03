@@ -150,7 +150,7 @@ export class GoogleDrive {
             else if (request.url.startsWith("/response")) {
                 if (request.url === "/response/invalid") {
                     vscode.window.showErrorMessage("Project pick failed : invalid project");
-                    result = "Project pick failed : invalid project. Please select the .collabdynamic, the .collabstatic and the .collabstate files corresponding to the project you want to join.";
+                    result = "Project pick failed : invalid project. Please select the .collabfolder folder and all 3 .collabdynamic, .collabstatic and .collabstate files corresponding to the project you want to join.";
                 }
                 else if (request.url === "/response/canceled") {
                     vscode.window.showErrorMessage("Project pick failed : canceled");
@@ -158,19 +158,33 @@ export class GoogleDrive {
                 }
                 else {
                     const params = new URL(request.url, LOCALHOST).searchParams;
+                    const folderID = params.get("folder");
                     const dynamicID = params.get("dynamic");
                     const staticID = params.get("static");
                     const stateID = params.get("state");
                     const name = params.get("name");
-                    if (!dynamicID || !staticID || !stateID || !name) {
+                    if (!folderID || !dynamicID || !staticID || !stateID || !name) {
                         return;
                     }
-                    const folder = await this.drive.files.get({ fileId: dynamicID, fields: "parents" });
-                    if (!folder.data.parents) {
-                        return;
+
+                    // Check all files are in the folder
+                    const files = await this.drive.files.list({ q: `'${folderID}' in parents`, fields: "files(id)" });
+                    if (!files.data.files) {
+                        vscode.window.showErrorMessage("Project pick failed : invalid project");
+                        result = "Project pick failed : invalid project. Please select the .collabfolder folder and all 3 .collabdynamic, .collabstatic and .collabstate files corresponding to the project you want to join.";
                     }
-                    await callback(new GoogleDriveProject(folder.data.parents[0], dynamicID, staticID, stateID, name));
-                    result = "Project pick succeeded. You can close this tab and go back to VSCode.";
+                    else {
+                        const ids = files.data.files.map(file => file.id);
+                        console.log(JSON.stringify(ids));
+                        if (!ids.includes(dynamicID) || !ids.includes(staticID) || !ids.includes(stateID)) {
+                            vscode.window.showErrorMessage("Project pick failed : invalid project");
+                            result = "Project pick failed : invalid project. Please select the .collabfolder folder and all 3 .collabdynamic, .collabstatic and .collabstate files corresponding to the project you want to join.";
+                        }
+                        else {
+                            await callback(new GoogleDriveProject(folderID, dynamicID, staticID, stateID, name));
+                            result = "Project pick succeeded. You can close this tab and go back to VSCode.";
+                        }
+                    }
                 }
                 response.end("");
             }
@@ -206,11 +220,13 @@ export class GoogleDrive {
 <script type="text/javascript">
     function createPicker() {
         const view = new google.picker.DocsView()
-            .setMimeTypes("application/octet-stream,application/json")
-            .setQuery("*.collabdynamic | *.collabstatic | *.collabstate");
+            .setMimeTypes("application/octet-stream,application/json,application/vnd.google-apps.folder")
+            .setQuery("*.collabfolder | *.collabdynamic | *.collabstatic | *.collabstate")
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(true);
         const picker = new google.picker.PickerBuilder()
             .addView(view)
-            .setTitle("Select a project (.collabdynamic, .collabstatic and .collabstate files)")
+            .setTitle("Select a project (the .collabfolder folder and all 3 .collabdynamic, .collabstatic and .collabstate files)")
             .setCallback(pickerCallback)
             .enableFeature(google.picker.Feature.NAV_HIDDEN)
             .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
@@ -224,11 +240,13 @@ export class GoogleDrive {
         if (data.action == google.picker.Action.PICKED) {
             const fileNames = data.docs.map(doc => doc.name);
             const name = fileNames[0].substring(0, fileNames[0].lastIndexOf("."));
-            if (fileNames.length === 3 && fileNames.includes(name + ".collabdynamic") && fileNames.includes(name + ".collabstatic") && fileNames.includes(name + ".collabstate")) {
+            console.log(JSON.stringify(fileNames));
+            if (fileNames.length === 4 && fileNames.includes(name + ".collabfolder") && fileNames.includes(name + ".collabdynamic") && fileNames.includes(name + ".collabstatic") && fileNames.includes(name + ".collabstate")) {
+                const folder = data.docs[fileNames.indexOf(name + ".collabfolder")];
                 const dynamic = data.docs[fileNames.indexOf(name + ".collabdynamic")];
                 const static = data.docs[fileNames.indexOf(name + ".collabstatic")];
                 const state = data.docs[fileNames.indexOf(name + ".collabstate")];
-                await fetch("${LOCALHOST}/response?dynamic=" + dynamic.id + "&static=" + static.id + "&state=" + state.id + "&name=" + name);
+                await fetch("${LOCALHOST}/response?folder=" + folder.id + "&dynamic=" + dynamic.id + "&static=" + static.id + "&state=" + state.id + "&name=" + name);
             }
             else {
                 await fetch("${LOCALHOST}/response/invalid");
@@ -273,7 +291,7 @@ export class GoogleDrive {
     public async createProject(name: string) : Promise<GoogleDriveProject> {
         const folder = await this.drive.files.create({
             requestBody: {
-                name: name,
+                name: name + ".collabfolder",
                 mimeType: "application/vnd.google-apps.folder"
             },
             fields: "id"
