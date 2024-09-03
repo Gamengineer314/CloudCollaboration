@@ -77,3 +77,24 @@ export function showErrorWrap(action: ((...args: any) => any)) : (...args: any) 
         }
     };
 }
+
+
+/**
+ * @brief Sleep for a given time
+ * @param ms Number of milliseconds to sleep
+**/
+export async function sleep(ms: number) : Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+
+/**
+ * @brief Wait for a condition to be true
+ * @param condition Condition to wait for
+ * @param interval Interval between checks
+**/
+export async function waitFor(condition: () => boolean, interval: number = 100) : Promise<void> {
+    while (!condition()) {
+        await sleep(interval);
+    }
+}

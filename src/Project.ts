@@ -3,7 +3,7 @@ import { GoogleDrive, GoogleDriveProject, Permission, ProjectState } from "./Goo
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { context, currentFolder } from "./extension";
-import { fileUri, listFolder, showErrorWrap } from "./util";
+import { fileUri, listFolder, showErrorWrap, waitFor } from "./util";
 
 
 export class Project {
@@ -37,8 +37,16 @@ export class Project {
                 context.globalState.update("previousFolder", previousFolder);
             }
 
-            vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
-            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+            // Wait for the session to be joined
+            if (!LiveShare.Instance) {
+                throw new Error("Can't connect to project : Live Share not initialized");
+            }
+            LiveShare.Instance.waitForSession().then(async () => {
+                await waitFor(() => vscode.window.activeTextEditor !== undefined);
+                await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+                await vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
+                vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+            });
         }
         else { // Come back to previous folder if activated
             if (previousFolder && previousFolder.active) {
