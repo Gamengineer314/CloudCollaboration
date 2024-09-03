@@ -46,22 +46,24 @@ export async function listFolder(folder: vscode.Uri | null = null) : Promise<[st
 
 
 /**
- * @brief Recursively get the names (with sub-folder names) of all files in the current folder
+ * @brief Recursively get the names (with sub-folder names) of all files in the current folder.
+ * @param listType Type of files to list
+ * @note If listType = FileType.Directory, the name of a folder is always given before the name of all its parent folders
 **/
-export function recurListFolder() : Promise<string[]> {
-    return _recurListFolder(currentFolder);
+export function recurListFolder(listType: vscode.FileType = vscode.FileType.File) : Promise<string[]> {
+    return _recurListFolder(currentFolder, listType);
 
 }
 
-async function _recurListFolder(folder: vscode.Uri, subfolder: string = "") : Promise<string[]> {
+async function _recurListFolder(folder: vscode.Uri, listType: vscode.FileType = vscode.FileType.File, subfolder: string = "") : Promise<string[]> {
     let fileNames = [];
     const files = await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(folder, subfolder));
     for (const [name, type] of files) {
-        if (type === vscode.FileType.File) {
-            fileNames.push(subfolder + "/" + name);
+        if (type === vscode.FileType.Directory) {
+            fileNames.push(...await _recurListFolder(folder, listType, subfolder + "/" + name));
         }
-        else if (type === vscode.FileType.Directory) {
-            fileNames.push(...await _recurListFolder(folder, subfolder + "/" + name));
+        if (type === listType) {
+            fileNames.push(subfolder + "/" + name);
         }
     }
     return fileNames;

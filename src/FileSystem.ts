@@ -179,20 +179,21 @@ export class FileSystem {
         }
 
         // Delete files
-        const names = await recurListFolder();
-        for (const name of names) {
-            if (name !== "/.collablaunch" && !match(name, config.ignoreRules)) {
-                await vscode.workspace.fs.delete(vscode.Uri.joinPath(folder, name));
+        const deleteEdit = new vscode.WorkspaceEdit();
+        const files = await recurListFolder();
+        for (const file of files) {
+            if (file !== "/.collablaunch" && !match(file, config.ignoreRules)) {
+                //await vscode.workspace.fs.delete(vscode.Uri.joinPath(folder, name));
+                deleteEdit.deleteFile(fileUri(file));
             }
         }
+        await vscode.workspace.applyEdit(deleteEdit);
 
         // Delete folders
-        const files = await vscode.workspace.fs.readDirectory(folder);
-        for (const file of files) {
-            if (file[1] === vscode.FileType.Directory) {
-                if ((await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(folder, file[0]))).length === 0) {
-                    await vscode.workspace.fs.delete(vscode.Uri.joinPath(folder, file[0]), { recursive: true });
-                }
+        const folders = await recurListFolder(vscode.FileType.Directory);
+        for (const folder of folders) {
+            if ((await vscode.workspace.fs.readDirectory(fileUri(folder))).length === 0) {
+                await vscode.workspace.fs.delete(fileUri(folder));
             }
         }
     }
