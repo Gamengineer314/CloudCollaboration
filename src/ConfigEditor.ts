@@ -12,7 +12,6 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         // Get the json from the opened .collabconfig file
         let project = JSON.parse(document.getText()) as Config;
 
-
         // Setup initial content for the webview
 		webviewPanel.webview.options = {
 			enableScripts: true,
@@ -68,6 +67,16 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 		webviewPanel.webview.onDidReceiveMessage(showErrorWrap(async e => {
 			switch (e.type) {
                 case 'on_load':
+                    // Add the current user to the project members if not already in it
+                    if (!GoogleDrive.Instance) {
+                        throw new Error("Config Editor load failed : not authenticated");
+                    }
+                    const email = await GoogleDrive.Instance.getEmail();
+                    // Check if the user is already in the project members or public members or is the owner
+                    if (project.shareConfig.members.every(m => m.name !== email) && project.shareConfig.publicMembers.every(m => m !== email) && project.shareConfig.owner !== email) {
+                        await this.addToMembers(project, document, email);
+                    }
+
                     updateWebview();
                     return;
 
@@ -216,6 +225,32 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 
 
     /**
+     * @brief Add the current user to the project members and remove it from the invites
+     * @param project Config object
+     * @param document vscode.TextDocument object
+     * @param email Email of the current user
+    **/
+    private async addToMembers(project: Config, document: vscode.TextDocument, email: string) : Promise<void> {
+        const inviteIndex = project.shareConfig.invites.findIndex(invite => invite.name === email);
+        if (inviteIndex !== -1) {
+            // Add the user to the members and remove it from the invites
+            project.shareConfig.members.push(project.shareConfig.invites[inviteIndex]);
+            project.shareConfig.invites.splice(inviteIndex, 1);
+        }
+        else {
+            // Add the user to the public members
+            project.shareConfig.publicMembers.push(email);
+        }
+
+        // Save the new config
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(project, null, 4));
+        vscode.workspace.applyEdit(edit);
+        await vscode.workspace.save(document.uri);
+    }
+
+
+    /**
      * @brief Remove a member from the project
      * @param index Index of the member to remove
      * @param project Config object
@@ -295,6 +330,13 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         if (project.shareConfig.invites.some(m => m.name === email)) {
             throw new Error(`User ${email} is already invited to the project`);
         }
+        if (project.shareConfig.publicMembers.some(m => m === email)) {
+            throw new Error(`User ${email} is already a global member of the project`);
+        }
+        //Check if the email is the owner
+        if (email === project.shareConfig.owner) {
+            throw new Error(`User ${email} is the owner of the project`);
+        }
 
         // Add the member to the google drive
         if (!GoogleDrive.Instance) {
@@ -372,8 +414,11 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 
         await GoogleDrive.Instance.unshare(Project.Instance.Project, project.shareConfig.public);
 
-        // remove the link from the shareConfig
+        // Remove the link from the shareConfig
         project.shareConfig.public = null;
+
+        // Remove all public members
+        project.shareConfig.publicMembers = [];
 
         // Save the new config
         const edit = new vscode.WorkspaceEdit();

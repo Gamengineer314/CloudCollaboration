@@ -35,6 +35,5 @@ When connecting to a project, the extension will either join the Live Share sess
 ## To do
 - Handle errors and edge cases
 - Transfer Live Share session if host disconnects or crashes
-- Custom editor for .collabconfig and .collablaunch files (project name, Connect and Disconnect button and other settings)
 - Extension icon and use it for .collablaunch and .collabconfig files
 - Publish the extension on the marketplace

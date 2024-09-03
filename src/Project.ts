@@ -33,13 +33,12 @@ export class Project {
         if (project) { // Connected to a project
             Project.instance = new Project(project.project, project.host, project.fileSystem);
             context.globalState.update("projectState", undefined);
-            
+
             if (previousFolder) { // Activate previous folder
                 previousFolder.active = true;
                 context.globalState.update("previousFolder", previousFolder);
             }
 
-            await Project.instance.addToMember();
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }
         else { // Come back to previous folder if activated
@@ -141,7 +140,8 @@ export class Project {
                 Project.instance = new Project(project, host, fileSystem);
                 Project.instance.startUpload();
 
-                await Project.instance.addToMember();
+                // Create config if it doesn't exist
+                await this.getConfig();
             }
             else {
                 // Save project state and join Live Share session (the extension will restart)
@@ -151,24 +151,6 @@ export class Project {
 
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }));
-    }
-
-
-    /**
-     * @brief Add the current user to the project members and remove it from the invites
-    **/
-    private async addToMember() : Promise<void> {
-        if (!GoogleDrive.Instance) {
-            throw new Error("Can't add to member : not authenticated");
-        }
-        const email = await GoogleDrive.Instance.getEmail();
-        const config = await Project.getConfig();
-        const inviteIndex = config.shareConfig.invites.findIndex(invite => invite.name === email);
-        if (inviteIndex !== -1) {
-            config.shareConfig.members.push(config.shareConfig.invites[inviteIndex]);
-            config.shareConfig.invites.splice(inviteIndex, 1);
-            await Project.setConfig(config);
-        }
     }
 
 
@@ -322,8 +304,9 @@ export class Config {
 
 export class ShareConfig {
     public invites: Permission[] = [];
-    public members: Permission[] = []
+    public members: Permission[] = [];
     public public: Permission | null = null;
+    public publicMembers: string[] = [];
 
     public constructor(public owner: string) {}
 }

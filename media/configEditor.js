@@ -1,7 +1,7 @@
 const vscode = acquireVsCodeApi();
 
 
-function updateMembers(owner, members, invites, public, isOwner, uris) {
+function updateMembers(owner, members, invites, public, publicMembers, isOwner, uris) {
     // Get the members div
     const membersDiv = document.getElementById('members');
 
@@ -92,6 +92,26 @@ function updateMembers(owner, members, invites, public, isOwner, uris) {
         membersDiv.appendChild(memberDiv);
     }
 
+    // Add all the public members
+    for (let i = 0; i < publicMembers.length; i++) {
+        // Create the div and the email span
+        const memberDiv = document.createElement('div');
+        memberDiv.style.paddingBottom = '15px';
+        const email = document.createElement('span');
+        email.innerText = publicMembers[i];
+        memberDiv.appendChild(email);
+
+        // Add the "Global" text
+        const publicText = document.createElement('span');
+        publicText.innerText = 'Global';
+        publicText.style.color = '#0078d4';
+        publicText.style.marginLeft = '40px';
+        memberDiv.appendChild(publicText);
+
+        membersDiv.appendChild(memberDiv);
+    }
+
+
     // Global sharing
     if (public) {
         globalSharingCheckbox.checked = true;
@@ -146,7 +166,7 @@ window.addEventListener('message', event => {
     const message = event.data;
     switch (message.type) {
         case 'update':
-            updateMembers(message.config.owner, message.config.members, message.config.invites, message.config.public, message.config.owner === message.email, message.uris);
+            updateMembers(message.config.owner, message.config.members, message.config.invites, message.config.public, message.config.publicMembers, message.config.owner === message.email, message.uris);
             return;
         case 'load_inputs':
             loadInputs(message.ignored, message.static);
