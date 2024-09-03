@@ -9,7 +9,6 @@ import { showErrorWrap } from "./util";
 
 export let context : vscode.ExtensionContext;
 export let currentFolder: vscode.Uri;
-export let storageFolder: vscode.Uri;
 
 
 // Function called when the extension is activated
@@ -17,9 +16,6 @@ export async function activate(_context: vscode.ExtensionContext) {
 	context = _context;
     if (vscode.workspace.workspaceFolders) {
         currentFolder = vscode.workspace.workspaceFolders?.[0].uri;
-    }
-    if (context.storageUri) {
-        storageFolder = context.storageUri;
     }
 
 	// Custom contexts for 'when' clauses
@@ -47,6 +43,8 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(disconnect);
     const downloadProject = vscode.commands.registerCommand("cloud-collaboration.downloadProject", showErrorWrap(() => Project.Instance?.download()));
     context.subscriptions.push(downloadProject);
+    const newTerminal = vscode.commands.registerCommand("cloud-collaboration.newTerminal", showErrorWrap(() => Project.Instance?.newTerminal()));
+    context.subscriptions.push(newTerminal);
 
     // Register editors
     const launchEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.launchEditor", new LaunchEditorProvider());

@@ -29,7 +29,7 @@ export class Project {
         const project = context.globalState.get<Project>("projectState");
         const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
         if (project) { // Connected to a project
-            Project.instance = new Project(project.project, project.host, project.fileSystem);
+            Project.instance = new Project(project.project, project.host, FileSystem.copy(project.fileSystem));
             context.globalState.update("projectState", undefined);
 
             if (previousFolder) { // Activate previous folder
@@ -201,6 +201,14 @@ export class Project {
             await vscode.workspace.fs.delete(fileUri(".collabconfig", folder[0]));
             vscode.window.showInformationMessage("Project downloaded successfully");
         }));
+    }
+
+
+    /**
+     * @brief Open a terminal in the folder with a copy of the project
+    **/
+    public async newTerminal() : Promise<void> {
+        await this.fileSystem.openProjectTerminal();
     }
 
 

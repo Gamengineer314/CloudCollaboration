@@ -42,6 +42,10 @@
       {
         "command": "cloud-collaboration.downloadProject",
         "title": "Cloud Collaboration: Download Project"
+      },
+      {
+        "command": "cloud-collaboration.newTerminal",
+        "title": "Cloud Collaboration: New Terminal"
       }
     ],
     "menus": {
@@ -72,6 +76,10 @@
         },
         {
           "command": "cloud-collaboration.downloadProject",
+          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.newTerminal",
           "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
         }
       ]

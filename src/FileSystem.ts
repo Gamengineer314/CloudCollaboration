@@ -2,7 +2,8 @@ import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
 import { FilesDeserializer, FilesSerializer } from "./FilesSerialization";
 import { match } from "./FileRules";
-import { fileUri, storageFileUri, recurListFolder } from "./util";
+import { fileUri, recurListFolder } from "./util";
+import { context, currentFolder } from "./extension";
 
 
 export class FileSystem {
@@ -13,10 +14,16 @@ export class FileSystem {
     private constructor(
         private state: ProjectState, 
         private googleDriveProject: GoogleDriveProject,
-        private storageProject: StorageProject
+        private storageProject: StorageProject,
+        private storageFolder: vscode.Uri,
+        private projectFolder: vscode.Uri
     ) {}
 
     public get State() : ProjectState { return this.state; }
+
+    public static copy(fileSystem: FileSystem) : FileSystem {
+        return new FileSystem(fileSystem.state, fileSystem.googleDriveProject, fileSystem.storageProject, fileSystem.storageFolder, fileSystem.projectFolder);
+    }
 
 
     /**
@@ -25,22 +32,33 @@ export class FileSystem {
      * @param state Initial state of the project
     **/
     public static async init(project: GoogleDriveProject, state: ProjectState) : Promise<FileSystem> {
+        // Storage folders
+        const storageFolder = context.storageUri;
+        if (!storageFolder) {
+            throw new Error("FileSystem initialization failed : no storage folder");
+        }
+        const projectFolder = fileUri("Project", storageFolder);
+
         // Default files for new projects
         let storageProject;
         try {
-            storageProject = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(storageFileUri("project.json"))));
+            storageProject = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri("project.json", storageFolder))));
         }
         catch {
             storageProject = new StorageProject(0, "", "");
+            await vscode.workspace.fs.createDirectory(projectFolder);
         }
         if (storageProject.dynamicID !== project.dynamicID || storageProject.staticID !== project.staticID) {
             storageProject = new StorageProject(0, project.dynamicID, project.staticID);
-            await vscode.workspace.fs.writeFile(storageFileUri("project.json"), new TextEncoder().encode(JSON.stringify(storageProject)));
-            await vscode.workspace.fs.writeFile(storageFileUri("project.collabdynamic"), new Uint8Array());
-            await vscode.workspace.fs.writeFile(storageFileUri("project.collabstatic"), new Uint8Array());
+            await vscode.workspace.fs.writeFile(fileUri("project.json", storageFolder), new TextEncoder().encode(JSON.stringify(storageProject)));
+            await vscode.workspace.fs.writeFile(fileUri("project.collabdynamic", storageFolder), new Uint8Array());
+            await vscode.workspace.fs.writeFile(fileUri("project.collabstatic", storageFolder), new Uint8Array());
+            for (const file of await recurListFolder(projectFolder)) {
+                await vscode.workspace.fs.delete(fileUri(file, projectFolder));
+            }
         }
 
-        return new FileSystem(state, project, storageProject);
+        return new FileSystem(state, project, storageProject, storageFolder, projectFolder);
     }
 
 
@@ -56,18 +74,18 @@ export class FileSystem {
         let dynamicFiles;
         if (this.state.dynamicVersion > this.storageProject.version) {
             dynamicFiles = await GoogleDrive.Instance.getDynamic(this.googleDriveProject);
-            await vscode.workspace.fs.writeFile(storageFileUri("project.collabdynamic"), dynamicFiles);
+            await vscode.workspace.fs.writeFile(this.storageFileUri("project.collabdynamic"), dynamicFiles);
         }
         else {
-            dynamicFiles = await vscode.workspace.fs.readFile(storageFileUri("project.collabdynamic"));
+            dynamicFiles = await vscode.workspace.fs.readFile(this.storageFileUri("project.collabdynamic"));
         }
         let staticFiles;
         if (this.state.staticVersion > this.storageProject.version) {
             staticFiles = await GoogleDrive.Instance.getStatic(this.googleDriveProject);
-            await vscode.workspace.fs.writeFile(storageFileUri("project.collabstatic"), staticFiles);
+            await vscode.workspace.fs.writeFile(this.storageFileUri("project.collabstatic"), staticFiles);
         }
         else {
-            staticFiles = await vscode.workspace.fs.readFile(storageFileUri("project.collabstatic"));
+            staticFiles = await vscode.workspace.fs.readFile(this.storageFileUri("project.collabstatic"));
         }
 
         // Load files in the folder
@@ -145,7 +163,7 @@ export class FileSystem {
             }
             const dynamicFiles = serializer.serialize();
             await GoogleDrive.Instance.setDynamic(this.googleDriveProject, dynamicFiles);
-            await vscode.workspace.fs.writeFile(storageFileUri("project.collabdynamic"), dynamicFiles);
+            await vscode.workspace.fs.writeFile(this.storageFileUri("project.collabdynamic"), dynamicFiles);
             this.state.dynamicVersion = this.storageProject.version + 1;
         }
         if (staticChanged) {
@@ -155,14 +173,14 @@ export class FileSystem {
             }
             const staticFiles = serializer.serialize();
             await GoogleDrive.Instance.setStatic(this.googleDriveProject, staticFiles);
-            await vscode.workspace.fs.writeFile(storageFileUri("project.collabstatic"), staticFiles);
+            await vscode.workspace.fs.writeFile(this.storageFileUri("project.collabstatic"), staticFiles);
             this.state.staticVersion = this.storageProject.version + 1;
         }
 
         // Increment version if files were changed
         if (dynamicChanged || staticChanged) {
             await GoogleDrive.Instance.setState(this.googleDriveProject, this.state);
-            const projectUri = storageFileUri("project.json");
+            const projectUri = this.storageFileUri("project.json");
             this.storageProject.version++;
             await vscode.workspace.fs.writeFile(projectUri, new TextEncoder().encode(JSON.stringify(this.storageProject)));
         }
@@ -190,12 +208,39 @@ export class FileSystem {
         await vscode.workspace.applyEdit(deleteEdit);
 
         // Delete folders
-        const folders = await recurListFolder(vscode.FileType.Directory);
+        const folders = await recurListFolder(currentFolder, vscode.FileType.Directory);
         for (const folder of folders) {
             if ((await vscode.workspace.fs.readDirectory(fileUri(folder))).length === 0) {
                 await vscode.workspace.fs.delete(fileUri(folder));
             }
         }
+    }
+
+
+    /**
+     * @brief Open a terminal in the project folder
+    **/
+    public async openProjectTerminal() : Promise<void> {
+        await vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: this.projectFolder.path });
+    }
+
+
+    /**
+     * @brief Get the URI of a file in the storage folder
+     * @param fileName Name of the file
+     * @returns 
+    **/
+    private storageFileUri(fileName: string) : vscode.Uri {
+        return fileUri(fileName, this.storageFolder);
+    }
+
+    /**
+     * @brief Get the URI of a file in the project folder
+     * @param fileName Name of the file
+     * @returns 
+    **/
+    private projectFileUri(name: string) : vscode.Uri {
+        return fileUri(name, this.projectFolder);
     }
 
 }
