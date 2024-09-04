@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { GoogleDrive, GoogleDriveProject, Permission, ProjectState } from "./GoogleDrive";
+import { GoogleDrive, GoogleDriveProject, Permission } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { context, currentFolder } from "./extension";
@@ -20,6 +20,7 @@ export class Project {
     ) {}
 
     public get Project() : GoogleDriveProject { return this.project; }
+
 
     /**
      * @brief Activate Project class
@@ -43,6 +44,7 @@ export class Project {
             }
             LiveShare.Instance.waitForSession().then(async () => {
                 await waitFor(() => vscode.window.activeTextEditor !== undefined);
+                await Project.instance?.fileSystem.startSync(true);
                 await vscode.commands.executeCommand("workbench.action.closeAllEditors");
                 await vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
                 vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
@@ -141,6 +143,7 @@ export class Project {
                 // Create instance
                 Project.instance = new Project(project, host, fileSystem);
                 await fileSystem.download();
+                await fileSystem.startSync(false);
                 Project.instance.startUpload();
 
                 vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
@@ -172,12 +175,18 @@ export class Project {
             }
 
             // Leave or end Live Share session
+            const config = await Project.getConfig();
+            Project.Instance.fileSystem.stopSync();
             await LiveShare.Instance.exitSession();
             if (Project.Instance.host) {
                 const state = Project.Instance.fileSystem.State;
                 state.url = "";
                 await GoogleDrive.Instance.setState(Project.Instance.project, state);
-                await Project.Instance.upload(true);
+                await Project.Instance.fileSystem.upload(config.filesConfig);
+                await Project.Instance.fileSystem.clear(config.filesConfig, true);
+            }
+            else {
+                await Project.Instance.fileSystem.clear(config.filesConfig, false);
             }
             
             Project.Instance.stopUpload();
@@ -225,7 +234,9 @@ export class Project {
     **/
     private startUpload() : void {
         this.intervalID = setInterval(showErrorWrap(async () => {
-            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Uploading to Google Drive..." }, showErrorWrap(async () => Project.Instance?.upload()));
+            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Uploading to Google Drive..." }, 
+                showErrorWrap(async () => await this.fileSystem.upload((await Project.getConfig()).filesConfig))
+            );
         }), 60_000);
     }
 
@@ -237,19 +248,6 @@ export class Project {
         if (this.intervalID) {
             clearInterval(this.intervalID);
             this.intervalID = undefined;
-        }
-    }
-
-
-    /**
-     * @brief Upload files to Google Drive
-     * @param clear Wether to clear the folder after uploading or not
-    **/
-    private async upload(clear: boolean = false) : Promise<void> {
-        const config = await Project.getConfig();
-        await this.fileSystem.upload(config.filesConfig);
-        if (clear) {
-            await this.fileSystem.clear(config.filesConfig);
         }
     }
 

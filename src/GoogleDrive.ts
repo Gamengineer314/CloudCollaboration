@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { Auth, drive_v3 } from "googleapis";
-import { Server, createServer } from "http";
+import { IncomingMessage, Server, ServerResponse, createServer } from "http";
 import { context } from "./extension";
 import { CLIENT_ID, CLIENT_SECRET, PROJECT_NUMBER } from "./credentials";
 import { Readable } from "stream";
@@ -63,7 +63,7 @@ export class GoogleDrive {
         const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
         const randomState = randomString(32);
         GoogleDrive.server?.close();
-        GoogleDrive.server = createServer(showErrorWrap(async (request, response) => {
+        GoogleDrive.server = createServer(showErrorWrap(async (request: IncomingMessage, response: ServerResponse<IncomingMessage>) => {
             // Ignore other calls (ex: icon)
             if (!request.url || request.url[1] !== "?") {
                 response.end("");
@@ -136,7 +136,7 @@ export class GoogleDrive {
     public async pickProject(callback: (project: GoogleDriveProject) => any ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
-        GoogleDrive.server = createServer(showErrorWrap(async (request, response) => {
+        GoogleDrive.server = createServer(showErrorWrap(async (request: IncomingMessage, response: ServerResponse<IncomingMessage>) => {
             if (!request.url) {
                 return;
             }
