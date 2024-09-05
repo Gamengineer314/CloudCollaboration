@@ -10,9 +10,10 @@ function updateMembers(owner, members, invites, public, publicMembers, isOwner, 
 
     // First add the owner
     const ownerDiv = document.createElement('div');
-    ownerDiv.style.paddingBottom = '15px';
+    ownerDiv.style.marginBottom = '15px';
     const email = document.createElement('span');
     email.innerText = owner;
+    email.style.padding = '5px 0px';
     ownerDiv.appendChild(email);
     
     let crown = document.createElement('img');
@@ -27,9 +28,10 @@ function updateMembers(owner, members, invites, public, publicMembers, isOwner, 
     for (let i = 0; i < members.length; i++) {
         // Create the div and the email span
         const memberDiv = document.createElement('div');
-        memberDiv.style.paddingBottom = '15px';
+        memberDiv.style.marginBottom = '15px';
         const email = document.createElement('span');
         email.innerText = members[i].name;
+        email.style.padding = '5px 0px';
         memberDiv.appendChild(email);
         
         if (isOwner) {
@@ -58,9 +60,10 @@ function updateMembers(owner, members, invites, public, publicMembers, isOwner, 
     for (let i = 0; i < invites.length; i++) {
         // Create the div and the email span
         const memberDiv = document.createElement('div');
-        memberDiv.style.paddingBottom = '15px';
+        memberDiv.style.marginBottom = '15px';
         const email = document.createElement('span');
         email.innerText = invites[i].name;
+        email.style.padding = '5px 0px';
         memberDiv.appendChild(email);
         
         if (isOwner) {
@@ -96,9 +99,10 @@ function updateMembers(owner, members, invites, public, publicMembers, isOwner, 
     for (let i = 0; i < publicMembers.length; i++) {
         // Create the div and the email span
         const memberDiv = document.createElement('div');
-        memberDiv.style.paddingBottom = '15px';
+        memberDiv.style.marginBottom = '15px';
         const email = document.createElement('span');
         email.innerText = publicMembers[i];
+        email.style.padding = '5px 0px';
         memberDiv.appendChild(email);
 
         // Add the "Global" text

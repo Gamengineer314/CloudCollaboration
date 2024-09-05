@@ -3,7 +3,7 @@ import { GoogleDrive, GoogleDriveProject, Permission, ProjectState } from "./Goo
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { context, currentFolder } from "./extension";
-import { fileUri, listFolder, showErrorWrap } from "./util";
+import { fileUri, listFolder, recurListFolder, showErrorWrap } from "./util";
 
 
 export class Project {

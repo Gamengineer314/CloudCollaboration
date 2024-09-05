@@ -175,7 +175,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <img id="gs_help_icon" class="help_icon" src="${helpIcon}" />
                 </div>
                 <div class="help_div">
-                    <span id="gs_help_text" class="help_text">Send this link to anyone you wish to share the project with. They can join the project in VSCode after opening the link.</span>
+                    <span id="gs_help_text" class="help_text">Send this link to anyone you wish to share the project with. They can join the project in VSCode after opening the link and double-clicking on each file.</span>
                 </div>
 
                 <div id="global_sharing_div">
@@ -191,7 +191,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <img id="if_help_icon" class="help_icon" src="${helpIcon}" />
                 </div>
                 <div class="help_div">
-                    <span id="if_help_text" class="help_text">List of rules determining which files are ignored. A rule is a path that may contain special characters :<br/>- ? = any character<br/>- [abc] = a, b or c<br/>- * = any sequence of characters except '/'<br/>- ** = any sequence of characters<br/>- If a rule starts with '!', it excludes files instead of including them.</span>
+                    <span id="if_help_text" class="help_text">Ignored files are not uploaded to Google Drive and are therefore not synchronized with your team. This can be used to improve upload/download performance. You can for example ignore temporary or compilation output files, or large files that rarely change if you share them by other means with your team.<br/>List of rules determining which files are ignored. A rule is a path that may contain special characters :<br/>- ? = any character<br/>- [abc] = a, b or c<br/>- * = any sequence of characters except '/'<br/>- ** = any sequence of characters<br/>- If a rule starts with '!', it excludes files instead of including them.</span>
                 </div>
 
                 <div><textarea id="ignored_input" type="text" placeholder="Ignored file rules"></textarea></div>
@@ -207,7 +207,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <img id="sf_help_icon" class="help_icon" src="${helpIcon}" />
                 </div>
                 <div class="help_div">
-                    <span id="sf_help_text" class="help_text">List of rules determining which files are static. A rule is a path that may contain special characters :<br/>- ? = any character<br/>- [abc] = a, b or c<br/>- * = any sequence of characters except '/'<br/>- ** = any sequence of characters<br/>- If a rule starts with '!', it excludes files instead of including them.</span>
+                    <span id="sf_help_text" class="help_text">Static files are uploaded/downloaded separately from the rest of the files. If a static file is modified, all static files need to be uploaded/downloaded. If a non-static file is modified, all non-static files need to be uploaded/downloaded. You should set files that rarely change as static to improve upload/download performance.<br/>List of rules determining which files are static. A rule is a path that may contain special characters :<br/>- ? = any character<br/>- [abc] = a, b or c<br/>- * = any sequence of characters except '/'<br/>- ** = any sequence of characters<br/>- If a rule starts with '!', it excludes files instead of including them.</span>
                 </div>
 
                 <div><textarea id="static_input" type="text" placeholder="Static file rules"></textarea></div>

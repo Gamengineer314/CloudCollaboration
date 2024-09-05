@@ -21,7 +21,7 @@ h2 {
 span {
     font-size: 20px;
     margin-right: 15px;
-    vertical-align: top;
+    display: inline-block;
 }
 textarea {
     width: 450px;
@@ -64,13 +64,16 @@ textarea {
     height: 30px;
     border: none;
     outline: none;
+    vertical-align: 14px;
 }
 #global_sharing_text {
     visibility: hidden;
     margin-right: 5px;
+    vertical-align: top;
 }
 #global_sharing_link {
     color: #0078d4;
+    vertical-align: top;
 }
 #copy_button {
     vertical-align: top;
@@ -144,6 +147,7 @@ textarea {
 .icon {
     width: 30px;
     height: 30px;
+    vertical-align: -8px;
 }
 .del_button {
     background-color: #ff0000;
