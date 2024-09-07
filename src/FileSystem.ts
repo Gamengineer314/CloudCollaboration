@@ -435,6 +435,7 @@ export class FileSystem {
                 if (stat.type === vscode.FileType.File) {
                     console.log("File");
                     content = await vscode.workspace.fs.readFile(uri);
+                    console.log(content);
                     directory = false;
                 }
                 else if (stat.type === vscode.FileType.Directory) {
@@ -457,7 +458,7 @@ export class FileSystem {
                     if (directory) {
                         console.log("Create collaboration directory");
                         state.content = content;
-                        await vscode.workspace.fs.createDirectory(this.toProjectUri(uri));
+                        await vscode.workspace.fs.createDirectory(this.toCollaborationUri(uri));
                     }
                     else {
                         const edit = new vscode.WorkspaceEdit();
@@ -508,7 +509,7 @@ export class FileSystem {
      * @brief Open a terminal in the project folder
     **/
     public async openProjectTerminal() : Promise<void> {
-        await vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: this.projectFolder.path });
+        await vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: this.projectFolder.fsPath });
     }
 
 
