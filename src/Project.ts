@@ -2,8 +2,8 @@ import * as vscode from "vscode";
 import { GoogleDrive, GoogleDriveProject, Permission } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
-import { context, currentFolder } from "./extension";
-import { fileUri, listFolder, showErrorWrap, waitFor } from "./util";
+import { collaborationFolder, context, currentFolder } from "./extension";
+import { fileUri, currentFileUri, collaborationFileUri, listFolder, currentListFolder, showErrorWrap, waitFor } from "./util";
 
 
 export class Project {
@@ -44,9 +44,9 @@ export class Project {
             }
             LiveShare.Instance.waitForSession().then(async () => {
                 await waitFor(() => vscode.window.activeTextEditor !== undefined);
-                await Project.instance?.fileSystem.startSync(true);
+                await Project.instance?.fileSystem.startSync(false);
                 await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-                await vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
+                await vscode.commands.executeCommand("vscode.openWith", collaborationFileUri(".collabconfig"), "cloud-collaboration.configEditor");
                 vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             });
         }
@@ -64,7 +64,7 @@ export class Project {
     **/
     public static async createProject() : Promise<void> {
         // Check if folder is empty
-        const files = await listFolder();
+        const files = await currentListFolder();
         if (files.length > 0) {
             throw new Error("Can't create project : folder must be empty");
         }
@@ -83,8 +83,9 @@ export class Project {
             const project = await GoogleDrive.Instance.createProject(name);
             
             // .collablaunch file
-            await vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
-            vscode.commands.executeCommand("vscode.openWith", fileUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.workspace.fs.writeFile(currentFileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            vscode.commands.executeCommand("vscode.openWith", currentFileUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.workspace.fs.createDirectory(collaborationFolder);
             vscode.window.showInformationMessage("Project created successfully");
         }));
     }
@@ -95,7 +96,7 @@ export class Project {
     **/
     public static async joinProject() : Promise<void> {
         // Check if folder is empty
-        const files = await listFolder();
+        const files = await currentListFolder();
         if (files.length > 0) {
             throw new Error("Can't join project : folder must be empty");
         }
@@ -106,8 +107,9 @@ export class Project {
         }
         await GoogleDrive.Instance.pickProject(async (project) => {
             // .collablaunch file
-            await vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
-            vscode.commands.executeCommand("vscode.openWith", fileUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.workspace.fs.writeFile(currentFileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            vscode.commands.executeCommand("vscode.openWith", currentFileUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.workspace.fs.createDirectory(collaborationFolder);
             vscode.window.showInformationMessage("Project joined successfully");
         });
     }
@@ -130,23 +132,27 @@ export class Project {
             }
 
             // Get project information from .collablaunch file
-            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
+            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentFileUri(".collablaunch")))) as GoogleDriveProject;
             const state = await GoogleDrive.Instance.getState(project);
             const host = state.url === "";
             const fileSystem = await FileSystem.init(project, state);
 
             if (host) {
+                // Create instance
+                Project.instance = new Project(project, host, fileSystem);
+                await fileSystem.download();
+
                 // Create Live Share session
                 state.url = await LiveShare.Instance.createSession();
                 await GoogleDrive.Instance.setState(project, state);
 
-                // Create instance
-                Project.instance = new Project(project, host, fileSystem);
-                await fileSystem.download();
-                await fileSystem.startSync(false);
+                // Start synchronization
+                await fileSystem.startSync(true);
                 Project.instance.startUpload();
 
-                vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
+                // Open config
+                await Project.getConfig();
+                vscode.commands.executeCommand("vscode.openWith", collaborationFileUri(".collabconfig"), "cloud-collaboration.configEditor");
                 vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             }
             else {
@@ -258,15 +264,15 @@ export class Project {
     private static async getConfig() : Promise<Config> {
         let config: Config;
         try {
-            config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collabconfig")))) as Config;
+            config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(collaborationFileUri(".collabconfig")))) as Config;
         }
         catch {
             if (!GoogleDrive.Instance) {
                 throw new Error("Can't create config : not authenticated");
             }
-            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
+            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentFileUri(".collablaunch")))) as GoogleDriveProject;
             config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.Instance.getEmail()));
-            await vscode.workspace.fs.writeFile(fileUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
+            await vscode.workspace.fs.writeFile(collaborationFileUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
         }
         return config;
     }

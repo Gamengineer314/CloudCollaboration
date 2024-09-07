@@ -175,7 +175,6 @@ export class GoogleDrive {
                     }
                     else {
                         const ids = files.data.files.map(file => file.id);
-                        console.log(JSON.stringify(ids));
                         if (!ids.includes(dynamicID) || !ids.includes(staticID) || !ids.includes(stateID)) {
                             vscode.window.showErrorMessage("Project pick failed : invalid project");
                             result = "Project pick failed : invalid project. Please select the .collabfolder folder and all 3 .collabdynamic, .collabstatic and .collabstate files corresponding to the project you want to join.";
@@ -240,7 +239,6 @@ export class GoogleDrive {
         if (data.action == google.picker.Action.PICKED) {
             const fileNames = data.docs.map(doc => doc.name);
             const name = fileNames[0].substring(0, fileNames[0].lastIndexOf("."));
-            console.log(JSON.stringify(fileNames));
             if (fileNames.length === 4 && fileNames.includes(name + ".collabfolder") && fileNames.includes(name + ".collabdynamic") && fileNames.includes(name + ".collabstatic") && fileNames.includes(name + ".collabstate")) {
                 const folder = data.docs[fileNames.indexOf(name + ".collabfolder")];
                 const dynamic = data.docs[fileNames.indexOf(name + ".collabdynamic")];
