@@ -13,6 +13,7 @@ export class FileSystem {
     private previousStatic : Map<string, number> = new Map<string, number>();
     private files : Map<string, FileState> = new Map<string, FileState>();
     private binaryFiles : Set<string> = new Set<string>; // Name of all binary files
+    private createdFiles : Set<string> = new Set<string>; // Name of the files that were just created by the user
     private syncDisposables : vscode.Disposable[] = [];
     
     private constructor(
@@ -129,7 +130,7 @@ export class FileSystem {
                     content = new TextEncoder().encode(toBase64(content));
                 }
                 await vscode.workspace.fs.writeFile(
-                    collaborationUri(this.tocollabName(file)),
+                    collaborationUri(this.toCollabName(file)),
                     content
                 );
             }
@@ -201,7 +202,7 @@ export class FileSystem {
         if (dynamicChanged) {
             const serializer = new FilesSerializer();
             for (const name of newDynamic.keys()) {
-                serializer.add(this.tocollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
+                serializer.add(this.toCollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
             }
             const dynamicFiles = serializer.serialize();
             await GoogleDrive.Instance.setDynamic(this.googleDriveProject, dynamicFiles);
@@ -211,7 +212,7 @@ export class FileSystem {
         if (staticChanged) {
             const serializer = new FilesSerializer();
             for (const name of newStatic.keys()) {
-                serializer.add(this.tocollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
+                serializer.add(this.toCollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
             }
             const staticFiles = serializer.serialize();
             await GoogleDrive.Instance.setStatic(this.googleDriveProject, staticFiles);
@@ -337,6 +338,13 @@ export class FileSystem {
                 }
             }
         })));
+        
+        // Get files created by the user
+        this.syncDisposables.push(vscode.workspace.onWillCreateFiles(showErrorWrap(async (event: vscode.FileWillCreateEvent) => {
+            for (const file of event.files) {
+                this.createdFiles.add(collaborationName(file));
+            }
+        })));
 
         // Remove old files from memory
         setInterval(() => {
@@ -379,6 +387,10 @@ export class FileSystem {
             return;
         }
         state.collaborationModifying = true;
+
+        // Check if this user created the file
+        const creator = this.createdFiles.has(collabName);
+        this.createdFiles.delete(collabName);
 
         // Modify project file while collaboration file is modified
         do {
@@ -428,7 +440,7 @@ export class FileSystem {
                             if (collabName.endsWith(".collab64")) { // Binary file -> add to binary files
                                 this.binaryFiles.add(projectName);
                             }
-                            else if (isBinary(content)) { // Shouldn't be binary
+                            else if (creator && isBinary(content)) { // Shouldn't be binary
                                 vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files");
                                 state.content = null;
                                 const edit = new vscode.WorkspaceEdit();
@@ -466,7 +478,7 @@ export class FileSystem {
 
         // Get file state
         const projectName = this.projectName(uri);
-        let collabName = this.tocollabName(projectName);
+        let collabName = this.toCollabName(projectName);
         let state = this.files.get(projectName);
         if (!state) {
             state = new FileState();
@@ -671,7 +683,7 @@ export class FileSystem {
      * @param name Name of the file in the project folder
      * @returns Name of the file in the collaboration folder
     **/
-    private tocollabName(name: string) {
+    private toCollabName(name: string) {
         if (this.binaryFiles.has(name)) {
             return name + ".collab64";
         }
