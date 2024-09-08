@@ -3,7 +3,7 @@ import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
 import { FilesDeserializer, FilesSerializer } from "./FilesSerialization";
 import { match } from "./FileRules";
 import { isBinary, toBase64, fromBase64 } from "./BinaryFiles";
-import { collaborationUri, collaborationRecurListFolder, fileUri, recurListFolder, showErrorWrap } from "./util";
+import { collaborationUri, collaborationName, collaborationRecurListFolder, fileUri, recurListFolder, showErrorWrap } from "./util";
 import { context, collaborationFolder } from "./extension";
 
 
@@ -129,7 +129,7 @@ export class FileSystem {
                     content = new TextEncoder().encode(toBase64(content));
                 }
                 await vscode.workspace.fs.writeFile(
-                    collaborationUri(this.toCollaborationName(file)),
+                    collaborationUri(this.tocollabName(file)),
                     content
                 );
             }
@@ -201,7 +201,7 @@ export class FileSystem {
         if (dynamicChanged) {
             const serializer = new FilesSerializer();
             for (const name of newDynamic.keys()) {
-                serializer.add(this.toCollaborationName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
+                serializer.add(this.tocollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
             }
             const dynamicFiles = serializer.serialize();
             await GoogleDrive.Instance.setDynamic(this.googleDriveProject, dynamicFiles);
@@ -211,7 +211,7 @@ export class FileSystem {
         if (staticChanged) {
             const serializer = new FilesSerializer();
             for (const name of newStatic.keys()) {
-                serializer.add(this.toCollaborationName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
+                serializer.add(this.tocollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
             }
             const staticFiles = serializer.serialize();
             await GoogleDrive.Instance.setStatic(this.googleDriveProject, staticFiles);
@@ -322,7 +322,7 @@ export class FileSystem {
         // Auto-save modifications made by the extension in the collaboration folder
         this.syncDisposables.push(vscode.workspace.onDidChangeTextDocument(showErrorWrap((event: vscode.TextDocumentChangeEvent) => {
             if (event.contentChanges.length > 0) {
-                const name = this.toProjectName(this.collaborationName(event.document.uri));
+                const name = this.toProjectName(collaborationName(event.document.uri));
                 const state = this.files.get(name);
                 if (state && state.autoSave) {
                     console.log("Save");
@@ -359,8 +359,8 @@ export class FileSystem {
         console.log("Collaboration modified");
 
         // Get file state
-        const collaborationName = this.collaborationName(uri);
-        const projectName = this.toProjectName(collaborationName);
+        const collabName = collaborationName(uri);
+        const projectName = this.toProjectName(collabName);
         let state = this.files.get(projectName);
         if (!state) {
             state = new FileState();
@@ -392,7 +392,7 @@ export class FileSystem {
                 if (stat.type === vscode.FileType.File) {
                     console.log("File");
                     content = await vscode.workspace.fs.readFile(uri);
-                    if (collaborationName.endsWith(".collab64")) { // Binary file -> decode base64
+                    if (collabName.endsWith(".collab64")) { // Binary file -> decode base64
                         content = fromBase64(new TextDecoder().decode(content));
                     }
                     console.log(content);
@@ -425,13 +425,13 @@ export class FileSystem {
                         console.log("Create/modify project file");
                         if (create) {
                             create = false;
-                            if (collaborationName.endsWith(".collab64")) { // Binary file -> add to binary files
+                            if (collabName.endsWith(".collab64")) { // Binary file -> add to binary files
                                 this.binaryFiles.add(projectName);
                             }
                             else if (isBinary(content)) { // Shouldn't be binary
                                 vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files");
                                 const edit = new vscode.WorkspaceEdit();
-                                edit.deleteFile(collaborationUri(collaborationName));
+                                edit.deleteFile(collaborationUri(collabName));
                                 await vscode.workspace.applyEdit(edit);
                             }
                         }
@@ -464,7 +464,7 @@ export class FileSystem {
 
         // Get file state
         const projectName = this.projectName(uri);
-        let collaborationName = this.toCollaborationName(projectName);
+        let collabName = this.tocollabName(projectName);
         let state = this.files.get(projectName);
         if (!state) {
             state = new FileState();
@@ -520,14 +520,14 @@ export class FileSystem {
                     if (directory) {
                         console.log("Create collaboration directory");
                         state.content = content;
-                        await vscode.workspace.fs.createDirectory(collaborationUri(collaborationName));
+                        await vscode.workspace.fs.createDirectory(collaborationUri(collabName));
                     }
                     else {
-                        if (!collaborationName.endsWith(".collab64") && isBinary(content)) { // Binary file -> add to binary files and rename
+                        if (!collabName.endsWith(".collab64") && isBinary(content)) { // Binary file -> add to binary files and rename
                             this.binaryFiles.add(projectName);
                             console.log("Delete collaboration file/directory");
-                            await vscode.workspace.fs.delete(collaborationUri(collaborationName), { recursive: true });
-                            collaborationName += ".collab64";
+                            await vscode.workspace.fs.delete(collaborationUri(collabName), { recursive: true });
+                            collabName += ".collab64";
                             create = true;
                         }
                         if (create) {
@@ -536,15 +536,15 @@ export class FileSystem {
                             state.content = new Uint8Array();
                             state.projectContinue = true;
                             const edit = new vscode.WorkspaceEdit();
-                            edit.createFile(collaborationUri(collaborationName));
+                            edit.createFile(collaborationUri(collabName));
                             await vscode.workspace.applyEdit(edit);
                         }
                         else {
                             console.log("Modify collaboration file");
                             state.content = content;
-                            const str = collaborationName.endsWith(".collab64") ? toBase64(content) : new TextDecoder().decode(content);
+                            const str = collabName.endsWith(".collab64") ? toBase64(content) : new TextDecoder().decode(content);
                             const edit = new vscode.WorkspaceEdit();
-                            edit.replace(collaborationUri(collaborationName), new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
+                            edit.replace(collaborationUri(collabName), new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
                             if (!state.projectContinue) {
                                 await this.applyEditAndSave(edit, state);
                             }
@@ -554,7 +554,7 @@ export class FileSystem {
                 else {
                     console.log("Delete collaboration file/directory");
                     state.content = content;
-                    await vscode.workspace.fs.delete(collaborationUri(collaborationName), { recursive: true });
+                    await vscode.workspace.fs.delete(collaborationUri(collabName), { recursive: true });
                     this.binaryFiles.delete(projectName);
                 }
             }
@@ -649,14 +649,6 @@ export class FileSystem {
     }
 
     /**
-     * @brief Get the name of a file in the collaboration folder
-     * @param uri URI of the file in the collaboration folder
-    **/
-    private collaborationName(uri: vscode.Uri) : string {
-        return uri.path.substring(collaborationFolder.path.length);
-    }
-
-    /**
      * @brief Get the name of a file in the project folder from its name in the collaboration folder
      * @param name Name of the file in the collaboration folder
      * @returns Name of the file in the project folder
@@ -673,7 +665,7 @@ export class FileSystem {
      * @param name Name of the file in the project folder
      * @returns Name of the file in the collaboration folder
     **/
-    private toCollaborationName(name: string) {
+    private tocollabName(name: string) {
         if (this.binaryFiles.has(name)) {
             return name + ".collab64";
         }

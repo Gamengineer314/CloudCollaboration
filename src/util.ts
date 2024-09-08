@@ -45,6 +45,15 @@ export function collaborationUri(fileName: string) : vscode.Uri {
 
 
 /**
+ * @brief Get the name of a file in the collaboration folder
+ * @param uri URI of the file
+**/
+export function collaborationName(uri: vscode.Uri) : string {
+    return uri.path.substring(collaborationFolder.path.length);
+}
+
+
+/**
  * @brief List the files in a folder
  * @param folder The folder
  * @returns List of file names and types
