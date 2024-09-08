@@ -207,7 +207,7 @@ export class Project {
     **/
     public async download() : Promise<void> {
         // Pick folder
-        const folder = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false });
+        const folder = await vscode.window.showOpenDialog({ defaultUri: vscode.Uri.parse("file:///"), canSelectFiles: false, canSelectFolders: true, canSelectMany: false });
         if (!folder || folder.length === 0) {
             throw new Error("Download failed : no folder selected");
         }
@@ -232,6 +232,19 @@ export class Project {
     **/
     public async newTerminal() : Promise<void> {
         await this.fileSystem.openProjectTerminal();
+    }
+
+
+    /**
+     * @brief Prompt the user to select files to add to the project
+    **/
+    public async uploadFiles() : Promise<void> {
+        const files = await vscode.window.showOpenDialog({ defaultUri: vscode.Uri.parse("file:///"), canSelectMany: true });
+        if (!files) {
+            throw new Error("Upload failed : no files selected");
+        }
+        await this.fileSystem.addFiles(files);
+        vscode.window.showInformationMessage("Files uploaded successfully");
     }
 
 

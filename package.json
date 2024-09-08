@@ -46,6 +46,10 @@
       {
         "command": "cloud-collaboration.newTerminal",
         "title": "Cloud Collaboration: New Terminal"
+      },
+      {
+        "command": "cloud-collaboration.uploadFiles",
+        "title": "Cloud Collaboration: Upload Files"
       }
     ],
     "menus": {
@@ -80,6 +84,10 @@
         },
         {
           "command": "cloud-collaboration.newTerminal",
+          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.uploadFiles",
           "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
         }
       ]

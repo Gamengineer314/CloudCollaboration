@@ -620,6 +620,17 @@ export class FileSystem {
 
 
     /**
+     * @brief Copy given files to the project folder
+     * @param files URIs of the files to add
+    **/
+    public async addFiles(files: vscode.Uri[]) : Promise<void> {
+        for (const file of files) {
+            await vscode.workspace.fs.copy(file, this.projectUri(file.path.substring(file.path.lastIndexOf("/") + 1)));
+        }
+    }
+
+
+    /**
      * @brief Check if the content of a file was modified
      * @param previousContent Previous content of the file
      * @param newContent Possibly new content of the file
