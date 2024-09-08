@@ -245,8 +245,11 @@ export class FileSystem {
      * @param host Wether or not the current user is the host of the Live Share session
     **/
     public async startSync(host: boolean) : Promise<void> {
-        // Copy files in the collaboration folder to the project folder
+        // Copy files from the collaboration folder to the project folder
         if (!host) {
+            for (const file of await vscode.workspace.fs.readDirectory(collaborationFolder)) {
+                await vscode.workspace.fs.delete(this.toProjectUri(collaborationFileUri(file[0])), { recursive: true });
+            }
             for (const file of await collaborationRecurListFolder()) {
                 const uri = collaborationFileUri(file);
                 await vscode.workspace.fs.copy(uri, this.toProjectUri(uri), { overwrite: true });
