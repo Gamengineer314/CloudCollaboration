@@ -685,8 +685,8 @@ export class FileSystem {
 
 
 export class FilesConfig {
-    public staticRules: string[] = ["**.png", "**.jpg", "**.jpeg", "**.pdf", "**.svg"];
-    public ignoreRules: string[] = [".vscode/**"];
+    public staticRules: string[] = [];
+    public ignoreRules: string[] = [];
 }
 
 
