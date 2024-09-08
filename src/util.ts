@@ -30,7 +30,7 @@ export function fileUri(fileName: string, folder: vscode.Uri) : vscode.Uri {
  * @brief Get the URI of a file in the current folder
  * @param fileName Name of the file
 **/
-export function currentFileUri(fileName: string) : vscode.Uri {
+export function currentUri(fileName: string) : vscode.Uri {
     return fileUri(fileName, currentFolder);
 }
 
@@ -39,7 +39,7 @@ export function currentFileUri(fileName: string) : vscode.Uri {
  * @brief Get the URI of a file in the collaboration folder
  * @param fileName Name of the file
 **/
-export function collaborationFileUri(fileName: string) : vscode.Uri {
+export function collaborationUri(fileName: string) : vscode.Uri {
     return fileUri(fileName, collaborationFolder);
 }
 
