@@ -430,9 +430,11 @@ export class FileSystem {
                             }
                             else if (isBinary(content)) { // Shouldn't be binary
                                 vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files");
+                                state.content = null;
                                 const edit = new vscode.WorkspaceEdit();
                                 edit.deleteFile(collaborationUri(collabName));
                                 await vscode.workspace.applyEdit(edit);
+                                continue;
                             }
                         }
                         await vscode.workspace.fs.writeFile(this.projectUri(projectName), content);
@@ -526,7 +528,9 @@ export class FileSystem {
                         if (!collabName.endsWith(".collab64") && isBinary(content)) { // Binary file -> add to binary files and rename
                             this.binaryFiles.add(projectName);
                             console.log("Delete collaboration file/directory");
-                            await vscode.workspace.fs.delete(collaborationUri(collabName), { recursive: true });
+                            const edit = new vscode.WorkspaceEdit();
+                            edit.deleteFile(collaborationUri(collabName), { recursive: true });
+                            await vscode.workspace.applyEdit(edit);
                             collabName += ".collab64";
                             create = true;
                         }
@@ -554,7 +558,9 @@ export class FileSystem {
                 else {
                     console.log("Delete collaboration file/directory");
                     state.content = content;
-                    await vscode.workspace.fs.delete(collaborationUri(collabName), { recursive: true });
+                    const edit = new vscode.WorkspaceEdit();
+                    edit.deleteFile(collaborationUri(collabName), { recursive: true });
+                    await vscode.workspace.applyEdit(edit);
                     this.binaryFiles.delete(projectName);
                 }
             }
