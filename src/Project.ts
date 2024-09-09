@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import { GoogleDrive, GoogleDriveProject, Permission, ProjectState } from "./GoogleDrive";
+import { GoogleDrive, GoogleDriveProject, Permission } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
-import { context, currentFolder } from "./extension";
-import { fileUri, listFolder, recurListFolder, showErrorWrap } from "./util";
+import { collaborationFolder, context, currentFolder } from "./extension";
+import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, waitFor } from "./util";
 
 
 export class Project {
@@ -15,11 +15,12 @@ export class Project {
 
     private constructor(
         private project: GoogleDriveProject,
-        private host: boolean, 
-        private fileSystem: FileSystem | null
+        private host: boolean,
+        private fileSystem: FileSystem
     ) {}
 
     public get Project() : GoogleDriveProject { return this.project; }
+
 
     /**
      * @brief Activate Project class
@@ -29,7 +30,7 @@ export class Project {
         const project = context.globalState.get<Project>("projectState");
         const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
         if (project) { // Connected to a project
-            Project.instance = new Project(project.project, project.host, project.fileSystem);
+            Project.instance = new Project(project.project, project.host, FileSystem.copy(project.fileSystem));
             context.globalState.update("projectState", undefined);
 
             if (previousFolder) { // Activate previous folder
@@ -37,17 +38,17 @@ export class Project {
                 context.globalState.update("previousFolder", previousFolder);
             }
 
-            // Open config the first time
-            if (!GoogleDrive.Instance) {
-                throw new Error("Can't connect to project : not authenticated");
+            // Wait for the session to be joined
+            if (!LiveShare.Instance) {
+                throw new Error("Can't connect to project : Live Share not initialized");
             }
-            const config = await this.getConfig();
-            const email = await GoogleDrive.Instance.getEmail();
-            if (config.shareConfig.members.every(member => member.name !== email) && config.shareConfig.publicMembers.every(member => member !== email) && email !== config.shareConfig.owner) {
-                vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
-            }
-
-            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+            LiveShare.Instance.waitForSession().then(async () => {
+                await waitFor(() => vscode.window.activeTextEditor !== undefined);
+                await Project.instance?.fileSystem.startSync(false);
+                await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+                await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+                vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+            });
         }
         else { // Come back to previous folder if activated
             if (previousFolder && previousFolder.active) {
@@ -63,7 +64,7 @@ export class Project {
     **/
     public static async createProject() : Promise<void> {
         // Check if folder is empty
-        const files = await listFolder();
+        const files = await currentListFolder();
         if (files.length > 0) {
             throw new Error("Can't create project : folder must be empty");
         }
@@ -82,8 +83,9 @@ export class Project {
             const project = await GoogleDrive.Instance.createProject(name);
             
             // .collablaunch file
-            await vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
-            vscode.commands.executeCommand("vscode.openWith", fileUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.workspace.fs.createDirectory(collaborationFolder);
             vscode.window.showInformationMessage("Project created successfully");
         }));
     }
@@ -94,7 +96,7 @@ export class Project {
     **/
     public static async joinProject() : Promise<void> {
         // Check if folder is empty
-        const files = await listFolder();
+        const files = await currentListFolder();
         if (files.length > 0) {
             throw new Error("Can't join project : folder must be empty");
         }
@@ -105,8 +107,9 @@ export class Project {
         }
         await GoogleDrive.Instance.pickProject(async (project) => {
             // .collablaunch file
-            await vscode.workspace.fs.writeFile(fileUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
-            vscode.commands.executeCommand("vscode.openWith", fileUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
+            vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.workspace.fs.createDirectory(collaborationFolder);
             vscode.window.showInformationMessage("Project joined successfully");
         });
     }
@@ -129,38 +132,34 @@ export class Project {
             }
 
             // Get project information from .collablaunch file
-            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
+            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as GoogleDriveProject;
             const state = await GoogleDrive.Instance.getState(project);
             const host = state.url === "";
+            const fileSystem = await FileSystem.init(project, state);
 
-            let fileSystem = null;
             if (host) {
+                // Create instance
+                Project.instance = new Project(project, host, fileSystem);
+                await fileSystem.download();
+
                 // Create Live Share session
                 state.url = await LiveShare.Instance.createSession();
                 await GoogleDrive.Instance.setState(project, state);
 
-                // Load project files
-                fileSystem = await FileSystem.init(project, state);
-                await fileSystem.download();
-
-                // Create instance
-                Project.instance = new Project(project, host, fileSystem);
+                // Start synchronization
+                await fileSystem.startSync(true);
                 Project.instance.startUpload();
 
-                // Open config the first time
-                const config = await this.getConfig();
-                const email = await GoogleDrive.Instance.getEmail();
-                if (config.shareConfig.members.every(member => member.name !== email) && config.shareConfig.publicMembers.every(member => member !== email) && email !== config.shareConfig.owner) {
-                    vscode.commands.executeCommand("vscode.openWith", fileUri(".collabconfig"), "cloud-collaboration.configEditor");
-                }
+                // Open config
+                await Project.getConfig();
+                vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+                vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             }
             else {
                 // Save project state and join Live Share session (the extension will restart)
                 context.globalState.update("projectState", new Project(project, host, fileSystem));
                 await LiveShare.Instance.joinSession(state.url);
             }
-
-            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }));
     }
 
@@ -182,15 +181,18 @@ export class Project {
             }
 
             // Leave or end Live Share session
+            const config = await Project.getConfig();
+            Project.Instance.fileSystem.stopSync();
             await LiveShare.Instance.exitSession();
             if (Project.Instance.host) {
-                if (!Project.Instance.fileSystem) {
-                    throw new Error("Disconnection failed : no file system");
-                }
-                const state = Project.Instance.fileSystem?.State;
+                const state = Project.Instance.fileSystem.State;
                 state.url = "";
                 await GoogleDrive.Instance.setState(Project.Instance.project, state);
-                await Project.Instance.upload(true);
+                await Project.Instance.fileSystem.upload(config.filesConfig);
+                await Project.Instance.fileSystem.clear(config.filesConfig, true);
+            }
+            else {
+                await Project.Instance.fileSystem.clear(config.filesConfig, false);
             }
             
             Project.Instance.stopUpload();
@@ -205,7 +207,7 @@ export class Project {
     **/
     public async download() : Promise<void> {
         // Pick folder
-        const folder = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false });
+        const folder = await vscode.window.showOpenDialog({ defaultUri: vscode.Uri.parse("file:///"), canSelectFiles: false, canSelectFolders: true, canSelectMany: false });
         if (!folder || folder.length === 0) {
             throw new Error("Download failed : no folder selected");
         }
@@ -218,20 +220,31 @@ export class Project {
 
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Downloading project..." }, showErrorWrap(async () => {
             // Download files (without .collabconfig)
-            if (this.fileSystem) {
-                await this.fileSystem.download(folder[0]);
-            }
-            else {
-                if (!GoogleDrive.Instance) {
-                    throw new Error("Download failed : not authenticated");
-                }
-                const state = await GoogleDrive.Instance.getState(this.project);
-                const fileSytem = await FileSystem.init(this.project, state);
-                await fileSytem.download(folder[0]);
-            }
+            await this.fileSystem.download(folder[0]);
             await vscode.workspace.fs.delete(fileUri(".collabconfig", folder[0]));
             vscode.window.showInformationMessage("Project downloaded successfully");
         }));
+    }
+
+
+    /**
+     * @brief Open a terminal in the folder with a copy of the project
+    **/
+    public async newTerminal() : Promise<void> {
+        await this.fileSystem.openProjectTerminal();
+    }
+
+
+    /**
+     * @brief Prompt the user to select files to add to the project
+    **/
+    public async uploadFiles() : Promise<void> {
+        const files = await vscode.window.showOpenDialog({ defaultUri: vscode.Uri.parse("file:///"), canSelectMany: true });
+        if (!files) {
+            throw new Error("Upload failed : no files selected");
+        }
+        await this.fileSystem.addFiles(files);
+        vscode.window.showInformationMessage("Files uploaded successfully");
     }
 
 
@@ -240,7 +253,9 @@ export class Project {
     **/
     private startUpload() : void {
         this.intervalID = setInterval(showErrorWrap(async () => {
-            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Uploading to Google Drive..." }, showErrorWrap(async () => Project.Instance?.upload()));
+            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Uploading to Google Drive..." }, 
+                showErrorWrap(async () => await this.fileSystem.upload((await Project.getConfig()).filesConfig))
+            );
         }), 60_000);
     }
 
@@ -257,36 +272,20 @@ export class Project {
 
 
     /**
-     * @brief Upload files to Google Drive
-     * @param clear Wether to clear the folder after uploading or not
-    **/
-    private async upload(clear: boolean = false) : Promise<void> {
-        if (!this.fileSystem) {
-            throw new Error("Upload failed : no file system");
-        }
-        const config = await Project.getConfig();
-        await this.fileSystem.upload(config.filesConfig);
-        if (clear) {
-            await this.fileSystem.clear(config.filesConfig);
-        }
-    }
-
-
-    /**
      * @brief Get the .collabconfig file in the current folder if it exists, create a default one otherwise
     **/
     private static async getConfig() : Promise<Config> {
         let config: Config;
         try {
-            config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collabconfig")))) as Config;
+            config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(collaborationUri(".collabconfig")))) as Config;
         }
         catch {
             if (!GoogleDrive.Instance) {
                 throw new Error("Can't create config : not authenticated");
             }
-            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(".collablaunch")))) as GoogleDriveProject;
+            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as GoogleDriveProject;
             config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.Instance.getEmail()));
-            await vscode.workspace.fs.writeFile(fileUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
+            await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
         }
         return config;
     }
@@ -313,6 +312,7 @@ export class ShareConfig {
 
     public constructor(public owner: string) {}
 }
+
 
 
 class PreviousFolder {

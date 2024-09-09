@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { Auth, drive_v3 } from "googleapis";
-import { Server, createServer } from "http";
+import { IncomingMessage, Server, ServerResponse, createServer } from "http";
 import { context } from "./extension";
 import { CLIENT_ID, CLIENT_SECRET, PROJECT_NUMBER } from "./credentials";
 import { Readable } from "stream";
@@ -63,7 +63,7 @@ export class GoogleDrive {
         const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
         const randomState = randomString(32);
         GoogleDrive.server?.close();
-        GoogleDrive.server = createServer(showErrorWrap(async (request, response) => {
+        GoogleDrive.server = createServer(showErrorWrap(async (request: IncomingMessage, response: ServerResponse<IncomingMessage>) => {
             // Ignore other calls (ex: icon)
             if (!request.url || request.url[1] !== "?") {
                 response.end("");
@@ -136,7 +136,7 @@ export class GoogleDrive {
     public async pickProject(callback: (project: GoogleDriveProject) => any ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
-        GoogleDrive.server = createServer(showErrorWrap(async (request, response) => {
+        GoogleDrive.server = createServer(showErrorWrap(async (request: IncomingMessage, response: ServerResponse<IncomingMessage>) => {
             if (!request.url) {
                 return;
             }
@@ -175,7 +175,6 @@ export class GoogleDrive {
                     }
                     else {
                         const ids = files.data.files.map(file => file.id);
-                        console.log(JSON.stringify(ids));
                         if (!ids.includes(dynamicID) || !ids.includes(staticID) || !ids.includes(stateID)) {
                             vscode.window.showErrorMessage("Project pick failed : invalid project");
                             result = "Project pick failed : invalid project. Please select the .collabfolder folder and all 3 .collabdynamic, .collabstatic and .collabstate files corresponding to the project you want to join.";
@@ -240,7 +239,6 @@ export class GoogleDrive {
         if (data.action == google.picker.Action.PICKED) {
             const fileNames = data.docs.map(doc => doc.name);
             const name = fileNames[0].substring(0, fileNames[0].lastIndexOf("."));
-            console.log(JSON.stringify(fileNames));
             if (fileNames.length === 4 && fileNames.includes(name + ".collabfolder") && fileNames.includes(name + ".collabdynamic") && fileNames.includes(name + ".collabstatic") && fileNames.includes(name + ".collabstate")) {
                 const folder = data.docs[fileNames.indexOf(name + ".collabfolder")];
                 const dynamic = data.docs[fileNames.indexOf(name + ".collabdynamic")];

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as vlsl from "vsls";
+import { waitFor } from "./util";
 
 
 export class LiveShare {
@@ -62,6 +63,14 @@ export class LiveShare {
     **/
     public async exitSession() : Promise<void> {
         await this.liveShare.end();
+    }
+
+
+    /**
+     * @brief Wait for the session to be joined
+    **/
+    public async waitForSession() : Promise<void> {
+        await waitFor(() => this.liveShare.session.id !== null);
     }
 
 }
