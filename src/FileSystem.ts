@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { Project } from "./Project";
 import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
 import { FilesDeserializer, FilesSerializer } from "./FilesSerialization";
 import { match } from "./FileRules";
@@ -441,7 +442,12 @@ export class FileSystem {
                                 this.binaryFiles.add(projectName);
                             }
                             else if (creator && isBinary(content)) { // Shouldn't be binary
-                                vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files");
+                                vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files")
+                                .then(showErrorWrap(async (item: string | undefined) => {
+                                    if (item) {
+                                        await Project.Instance?.uploadFiles();
+                                    }
+                                }));
                                 state.content = null;
                                 const edit = new vscode.WorkspaceEdit();
                                 edit.deleteFile(collaborationUri(collabName));

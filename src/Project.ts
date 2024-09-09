@@ -239,7 +239,7 @@ export class Project {
      * @brief Prompt the user to select files to add to the project
     **/
     public async uploadFiles() : Promise<void> {
-        const files = await vscode.window.showOpenDialog({ defaultUri: vscode.Uri.parse("file:///"), canSelectMany: true });
+        const files = await vscode.window.showOpenDialog({ defaultUri: vscode.Uri.parse("file:///"), title: "Select files to upload", canSelectMany: true });
         if (!files) {
             throw new Error("Upload failed : no files selected");
         }
