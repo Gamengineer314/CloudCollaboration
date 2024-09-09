@@ -44,10 +44,12 @@ export class Project {
             }
             LiveShare.Instance.waitForSession().then(async () => {
                 await waitFor(() => vscode.window.activeTextEditor !== undefined);
-                await Project.instance?.fileSystem.startSync(false);
+                await Project.Instance?.fileSystem.startSync(false);
                 await vscode.commands.executeCommand("workbench.action.closeAllEditors");
                 await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-                vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+                await vscode.commands.executeCommand("workbench.action.terminal.killAll");
+                await Project.Instance?.newTerminal();
+                await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             });
         }
         else { // Come back to previous folder if activated
@@ -84,7 +86,7 @@ export class Project {
             
             // .collablaunch file
             await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
-            vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
             await vscode.workspace.fs.createDirectory(collaborationFolder);
             vscode.window.showInformationMessage("Project created successfully");
         }));
@@ -108,7 +110,7 @@ export class Project {
         await GoogleDrive.Instance.pickProject(async (project) => {
             // .collablaunch file
             await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
-            vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
             await vscode.workspace.fs.createDirectory(collaborationFolder);
             vscode.window.showInformationMessage("Project joined successfully");
         });
@@ -150,10 +152,12 @@ export class Project {
                 await fileSystem.startSync(true);
                 Project.instance.startUpload();
 
-                // Open config
+                // Open config and terminal
                 await Project.getConfig();
-                vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-                vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+                await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+                await vscode.commands.executeCommand("workbench.action.terminal.killAll");
+                await Project.instance.newTerminal();
+                await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             }
             else {
                 // Save project state and join Live Share session (the extension will restart)
@@ -197,7 +201,8 @@ export class Project {
             
             Project.Instance.stopUpload();
             Project.instance = undefined;
-            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
+            await vscode.commands.executeCommand("workbench.action.terminal.killAll");
+            await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
         }));
     }
 
