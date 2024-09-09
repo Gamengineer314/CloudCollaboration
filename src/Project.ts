@@ -6,6 +6,12 @@ import { collaborationFolder, context, currentFolder } from "./extension";
 import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, waitFor } from "./util";
 
 
+const defaultSettings = `{
+    "liveshare.autoShareTerminals": false,
+    "files.saveConflictResolution": "overwriteFileOnDisk"
+}`;
+
+
 export class Project {
 
     private static instance : Project | undefined = undefined;
@@ -84,10 +90,12 @@ export class Project {
             }
             const project = await GoogleDrive.Instance.createProject(name);
             
-            // .collablaunch file
+            // Default files
             await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
             await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
             await vscode.workspace.fs.createDirectory(collaborationFolder);
+            await vscode.workspace.fs.createDirectory(currentUri(".vscode"));
+            await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(defaultSettings));
             vscode.window.showInformationMessage("Project created successfully");
         }));
     }
@@ -108,10 +116,12 @@ export class Project {
             throw new Error("Can't join project : not authenticated");
         }
         await GoogleDrive.Instance.pickProject(async (project) => {
-            // .collablaunch file
+            // Default files
             await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
             await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
             await vscode.workspace.fs.createDirectory(collaborationFolder);
+            await vscode.workspace.fs.createDirectory(currentUri(".vscode"));
+            await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(defaultSettings));
             vscode.window.showInformationMessage("Project joined successfully");
         });
     }
