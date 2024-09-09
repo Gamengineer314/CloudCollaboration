@@ -4,6 +4,7 @@ import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { collaborationFolder, context, currentFolder } from "./extension";
 import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, waitFor } from "./util";
+import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 
 
 export class Project {
@@ -44,7 +45,14 @@ export class Project {
             }
             LiveShare.Instance.waitForSession().then(async () => {
                 await waitFor(() => vscode.window.activeTextEditor !== undefined);
+
+                // Start synchronization
                 await Project.Instance?.fileSystem.startSync(false);
+
+                // Update file decorations
+                await IgnoreStaticDecorationProvider.Instance?.update();
+
+                // Open config and terminal
                 await vscode.commands.executeCommand("workbench.action.closeAllEditors");
                 await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
                 await vscode.commands.executeCommand("workbench.action.terminal.killAll");
@@ -151,6 +159,9 @@ export class Project {
                 // Start synchronization
                 await fileSystem.startSync(true);
                 Project.instance.startUpload();
+
+                // Update file decorations
+                await IgnoreStaticDecorationProvider.Instance?.update();
 
                 // Open config and terminal
                 await Project.getConfig();
@@ -279,7 +290,7 @@ export class Project {
     /**
      * @brief Get the .collabconfig file in the current folder if it exists, create a default one otherwise
     **/
-    private static async getConfig() : Promise<Config> {
+    public static async getConfig() : Promise<Config> {
         let config: Config;
         try {
             config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(collaborationUri(".collabconfig")))) as Config;

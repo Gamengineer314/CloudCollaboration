@@ -3,6 +3,7 @@ import { randomString, showErrorWrap } from './util';
 import { Config, Project } from './Project';
 import { context } from './extension';
 import { GoogleDrive, GoogleDriveProject, Permission } from './GoogleDrive';
+import { IgnoreStaticDecorationProvider } from './FileDecoration';
 
 
 export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
@@ -108,11 +109,17 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     return;
                 
                 case 'save_ignored':
-                    this.saveIgnored(e.value, project, document);
+                    await this.saveIgnored(e.value, project, document);
+                    // Update file decorations
+                    await IgnoreStaticDecorationProvider.Instance?.update();
+
                     return;
 
                 case 'save_static':
-                    this.saveStatic(e.value, project, document);
+                    await this.saveStatic(e.value, project, document);
+                    // Update file decorations
+                    await IgnoreStaticDecorationProvider.Instance?.update();
+
                     return;
 			}
 		}));
