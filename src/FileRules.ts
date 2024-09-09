@@ -5,6 +5,7 @@
 **/
 export function match(name: string, rules: string[]) : boolean {
     let match = false;
+    name = name.substring(1);
     for (let rule of rules) {
         const negate = rule.startsWith("!");
         if (negate) {
@@ -12,7 +13,6 @@ export function match(name: string, rules: string[]) : boolean {
         }
 
         if (match === negate) {
-            name = name.substring(1);
             if (matchRule(name, rule)) {
                 match = !match;
             }

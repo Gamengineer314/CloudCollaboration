@@ -5,6 +5,8 @@ import { LiveShare } from "./LiveShare";
 import { LaunchEditorProvider } from "./LaunchEditor";
 import { ConfigEditorProvider } from "./ConfigEditor";
 import { showErrorWrap } from "./util";
+import { IgnoreStaticDecorationProvider } from "./FileDecoration";
+import { match } from "./FileRules";
 
 
 export let context : vscode.ExtensionContext;
@@ -55,6 +57,10 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(launchEditor);
     const configEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.configEditor", new ConfigEditorProvider());
     context.subscriptions.push(configEditor);
+
+    // Register file decorations
+    const ignoreStaticDecorationProvider = vscode.window.registerFileDecorationProvider(new IgnoreStaticDecorationProvider());
+    context.subscriptions.push(ignoreStaticDecorationProvider);
 }
 
 
