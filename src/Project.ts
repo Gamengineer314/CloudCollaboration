@@ -9,7 +9,10 @@ import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 
 const defaultSettings = `{
     "liveshare.autoShareTerminals": false,
-    "files.saveConflictResolution": "overwriteFileOnDisk"
+    "files.saveConflictResolution": "overwriteFileOnDisk",
+    "terminal.integrated.defaultProfile.linux": "Cloud Collaboration",
+    "terminal.integrated.defaultProfile.windows": "Cloud Collaboration",
+    "terminal.integrated.defaultProfile.osx": "Cloud Collaboration"
 }`;
 
 
@@ -27,6 +30,7 @@ export class Project {
     ) {}
 
     public get Project() : GoogleDriveProject { return this.project; }
+    public get ProjectPath() : string { return this.fileSystem.ProjectPath; }
 
 
     /**
@@ -58,11 +62,9 @@ export class Project {
                 // Update file decorations
                 await IgnoreStaticDecorationProvider.Instance?.update();
 
-                // Open config and terminal
+                // Open config
                 await vscode.commands.executeCommand("workbench.action.closeAllEditors");
                 await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-                await vscode.commands.executeCommand("workbench.action.terminal.killAll");
-                await Project.Instance?.newTerminal();
                 await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             });
         }
@@ -173,11 +175,9 @@ export class Project {
                 // Update file decorations
                 await IgnoreStaticDecorationProvider.Instance?.update();
 
-                // Open config and terminal
+                // Open config
                 await Project.getConfig();
                 await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-                await vscode.commands.executeCommand("workbench.action.terminal.killAll");
-                await Project.instance.newTerminal();
                 await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             }
             else {
@@ -222,7 +222,6 @@ export class Project {
             
             Project.Instance.stopUpload();
             Project.instance = undefined;
-            await vscode.commands.executeCommand("workbench.action.terminal.killAll");
             await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
         }));
     }
@@ -257,7 +256,7 @@ export class Project {
      * @brief Open a terminal in the folder with a copy of the project
     **/
     public async newTerminal() : Promise<void> {
-        await this.fileSystem.openProjectTerminal();
+        await vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: this.fileSystem.ProjectPath });;
     }
 
 

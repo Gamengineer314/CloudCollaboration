@@ -6,7 +6,7 @@ import { LaunchEditorProvider } from "./LaunchEditor";
 import { ConfigEditorProvider } from "./ConfigEditor";
 import { showErrorWrap } from "./util";
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
-import { match } from "./FileRules";
+import { ProjectProfileProvider } from "./ProjectProfile";
 
 
 export let context : vscode.ExtensionContext;
@@ -61,6 +61,10 @@ export async function activate(_context: vscode.ExtensionContext) {
     // Register file decorations
     const ignoreStaticDecorationProvider = vscode.window.registerFileDecorationProvider(new IgnoreStaticDecorationProvider());
     context.subscriptions.push(ignoreStaticDecorationProvider);
+
+    // Register terminal profiles
+    const terminal = vscode.window.registerTerminalProfileProvider("cloud-collaboration.terminal", new ProjectProfileProvider());
+    context.subscriptions.push(terminal);
 }
 
 

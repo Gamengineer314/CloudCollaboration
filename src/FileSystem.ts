@@ -26,6 +26,7 @@ export class FileSystem {
     ) {}
 
     public get State() : ProjectState { return this.state; }
+    public get ProjectPath() : string { return this.projectFolder.path; }
 
     public static copy(fileSystem: FileSystem) : FileSystem {
         return new FileSystem(
@@ -614,14 +615,6 @@ export class FileSystem {
         for (const disposable of this.syncDisposables) {
             disposable.dispose();
         }
-    }
-
-
-    /**
-     * @brief Open a terminal in the project folder
-    **/
-    public async openProjectTerminal() : Promise<void> {
-        await vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: this.projectFolder.fsPath });
     }
 
 
