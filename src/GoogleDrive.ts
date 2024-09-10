@@ -53,68 +53,75 @@ export class GoogleDrive {
     /**
      * @brief Authenticate the user to Google Drive
     **/
-    public static authenticate() : void {
+    public static async authenticate() : Promise<void> {
         if (GoogleDrive.instance) { // Already authenticated
             vscode.window.showErrorMessage("Already authenticated");
             return;
         }
 
-        // Open prompt to authenticate and listen to localhost for redirection with code in URL parameters
-        const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
-        const randomState = randomString(32);
-        GoogleDrive.server?.close();
-        GoogleDrive.server = createServer(showErrorWrap(async (request: IncomingMessage, response: ServerResponse<IncomingMessage>) => {
-            // Ignore other calls (ex: icon)
-            if (!request.url || request.url[1] !== "?") {
-                response.end("");
-                return;
-            }
-
-            // Redirected with code
-            const url = new URL(request.url, LOCALHOST);
-            const code = url.searchParams.get("code");
-            const state = url.searchParams.get("state");
-            if (code && state === randomState) {
-                // Get refresh token from code
-                auth.getToken(code, showErrorWrap(async (error, tokens) => {
-                    if (!error && tokens && tokens.refresh_token) {
-                        auth.setCredentials(tokens);
-                        context.secrets.store("googleRefreshToken", tokens.refresh_token);
-                        GoogleDrive.instance = new GoogleDrive(auth);
-                        vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", true);
-                        vscode.window.showInformationMessage("Authenticated to Google Drive");
-                        response.end("Authentication succeeded. You can close this tab and go back to VSCode.");
-                    }
-                    else {
-                        vscode.window.showErrorMessage("Authentication failed : " + (error ? error.message : "no refresh token"));
-                        response.end("Authentication failed : " + (error ? error.message : "no refresh token"));
-                    }
-                }));
-            }
-            else {
-                vscode.window.showErrorMessage("Authentication failed. Please try again.");
-                response.end("Authentication failed. Please try again.");
-            }
+        return new Promise<void>(showErrorWrap((resolve: (value: void | PromiseLike<void>) => void) => {
+            // Open prompt to authenticate and listen to localhost for redirection with code in URL parameters
+            const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
+            const randomState = randomString(32);
             GoogleDrive.server?.close();
-            GoogleDrive.server = undefined;
-        }));
+            GoogleDrive.server = createServer(showErrorWrap(async (request: IncomingMessage, response: ServerResponse<IncomingMessage>) => {
+                // Ignore other calls (ex: icon)
+                if (!request.url || request.url[1] !== "?") {
+                    response.end("");
+                    return;
+                }
 
-        // Prompt URL
-        const url = auth.generateAuthUrl({
-            scope: SCOPE,
-            access_type: "offline",
-            state: randomState
-        });
-
-        GoogleDrive.server.listen(PORT, showErrorWrap(async () => {
-            // Open prompt
-            vscode.window.showInformationMessage("Please authenticate in the page opened in your browser");
-            const opened = await vscode.env.openExternal(vscode.Uri.parse(url));
-            if (!opened) {
-                vscode.window.showErrorMessage("Authentication failed : prompt not opened");
+                // Redirected with code
+                const url = new URL(request.url, LOCALHOST);
+                const code = url.searchParams.get("code");
+                const state = url.searchParams.get("state");
+                if (code && state === randomState) {
+                    // Get refresh token from code
+                    auth.getToken(code, showErrorWrap(async (error, tokens) => {
+                        if (!error && tokens && tokens.refresh_token) {
+                            auth.setCredentials(tokens);
+                            context.secrets.store("googleRefreshToken", tokens.refresh_token);
+                            GoogleDrive.instance = new GoogleDrive(auth);
+                            vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", true);
+                            vscode.window.showInformationMessage("Authenticated to Google Drive");
+                            response.end("Authentication succeeded. You can close this tab and go back to VSCode.");
+                        }
+                        else {
+                            vscode.window.showErrorMessage("Authentication failed : " + (error ? error.message : "no refresh token"));
+                            response.end("Authentication failed : " + (error ? error.message : "no refresh token"));
+                        }
+                        resolve();
+                    }));
+                }
+                else {
+                    vscode.window.showErrorMessage("Authentication failed. Please try again.");
+                    response.end("Authentication failed. Please try again.");
+                    resolve();
+                }
+                
                 GoogleDrive.server?.close();
                 GoogleDrive.server = undefined;
-            }
+            }));
+
+            // Prompt URL
+            const url = auth.generateAuthUrl({
+                scope: SCOPE,
+                access_type: "offline",
+                state: randomState
+            });
+
+            GoogleDrive.server.listen(PORT, showErrorWrap(async () => {
+                // Open prompt
+                vscode.window.showInformationMessage("Please authenticate in the page opened in your browser");
+                const opened = await vscode.env.openExternal(vscode.Uri.parse(url));
+                if (!opened) {
+                    vscode.window.showErrorMessage("Authentication failed : prompt not opened");
+                    GoogleDrive.server?.close();
+                    GoogleDrive.server = undefined;
+                    console.log("Resolving failure");
+                    resolve();
+                }
+            }));
         }));
     }
 
@@ -132,6 +139,7 @@ export class GoogleDrive {
 
     /**
      * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
+     * @param callback Callback that will be called with the project if a project is picked successfully
     **/
     public async pickProject(callback: (project: GoogleDriveProject) => any ) : Promise<void> {
         let result = "";

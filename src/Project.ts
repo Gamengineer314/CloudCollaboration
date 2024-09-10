@@ -70,6 +70,14 @@ export class Project {
             throw new Error("Can't create project : folder must be empty");
         }
 
+        // Check if authenticated
+        if (!GoogleDrive.Instance) {
+            await GoogleDrive.authenticate();
+            if (!GoogleDrive.Instance) {
+                throw new Error("Can't create project : not authenticated");
+            }
+        }
+
         // Ask for project name
         const name = await vscode.window.showInputBox({ prompt: "Project name" });
         if (!name) {
@@ -104,10 +112,14 @@ export class Project {
             throw new Error("Can't join project : folder must be empty");
         }
 
-        // Pick project
+        // Check if authenticated
         if (!GoogleDrive.Instance) {
-            throw new Error("Can't join project : not authenticated");
+            await GoogleDrive.authenticate();
+            if (!GoogleDrive.Instance) {
+                throw new Error("Can't join project : not authenticated");
+            }
         }
+
         await GoogleDrive.Instance.pickProject(async (project) => {
             // Default files
             await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
@@ -124,6 +136,14 @@ export class Project {
      * @brief Connect to the project in the current folder
     **/
     public static async connect() : Promise<void> {
+        // Check if authenticated
+        if (!GoogleDrive.Instance) {
+            await GoogleDrive.authenticate();
+            if (!GoogleDrive.Instance) {
+                throw new Error("Connection failed : not authenticated");
+            }
+        }
+        
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(async () => {
             // Check instances
             if (!GoogleDrive.Instance) {
