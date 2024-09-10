@@ -175,15 +175,15 @@ export class Project {
                 await fileSystem.startSync(true);
                 instance.startUpload();
 
-                // Update file decorations
-                await IgnoreStaticDecorationProvider.Instance?.update();
-
-                // Open config
-                await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-
                 // Connected
                 Project.instance = instance;
                 await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+
+                // Setup workspace
+                await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+                await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+                await vscode.commands.executeCommand("workbench.action.terminal.killAll");
+                await IgnoreStaticDecorationProvider.Instance?.update();
             }
             else {
                 // Save project state and join Live Share session (the extension will restart)
@@ -209,17 +209,16 @@ export class Project {
 
             // Start synchronization
             await Project.Instance?.fileSystem.startSync(false);
-
-            // Update file decorations
-            await IgnoreStaticDecorationProvider.Instance?.update();
-
-            // Open config
-            await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-            await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
             
             // Connected
             Project.instance = instance;
             await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+
+            // Setup workspace
+            await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+            await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+            await vscode.commands.executeCommand("workbench.action.terminal.killAll");
+            await IgnoreStaticDecorationProvider.Instance?.update();
         }));
     }
 
@@ -258,6 +257,7 @@ export class Project {
             Project.Instance.stopUpload();
             Project.instance = undefined;
             await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
+            await vscode.commands.executeCommand("workbench.action.terminal.killAll");
         }));
     }
 

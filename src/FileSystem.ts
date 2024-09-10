@@ -26,7 +26,7 @@ export class FileSystem {
     ) {}
 
     public get State() : ProjectState { return this.state; }
-    public get ProjectPath() : string { return this.projectFolder.path; }
+    public get ProjectPath() : string { return this.projectFolder.fsPath; }
 
     public static copy(fileSystem: FileSystem) : FileSystem {
         return new FileSystem(
