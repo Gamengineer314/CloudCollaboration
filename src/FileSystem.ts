@@ -630,6 +630,16 @@ export class FileSystem {
 
 
     /**
+     * @brief Open a file in the project folder
+     * @param name The name of the corresponding file in the collaboration folder
+    **/
+    public async openFile(name: string) : Promise<void> {
+        const uri = this.projectUri(this.toProjectName(name));
+        // TO DO
+    }
+
+
+    /**
      * @brief Check if the content of a file was modified
      * @param previousContent Previous content of the file
      * @param newContent Possibly new content of the file

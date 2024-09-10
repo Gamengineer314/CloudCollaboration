@@ -256,7 +256,7 @@ export class Project {
      * @brief Open a terminal in the folder with a copy of the project
     **/
     public async newTerminal() : Promise<void> {
-        await vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: this.fileSystem.ProjectPath });;
+        await vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: this.fileSystem.ProjectPath });
     }
 
 
@@ -270,6 +270,15 @@ export class Project {
         }
         await this.fileSystem.addFiles(files);
         vscode.window.showInformationMessage("Files uploaded successfully");
+    }
+
+
+    /**
+     * @brief Open a file in the project folder
+     * @param name The name of the corresponding file in the collaboration folder
+    **/
+    public async openProjectFile(name: string) : Promise<void> {
+        await this.fileSystem.openFile(name);
     }
 
 
