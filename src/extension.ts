@@ -49,7 +49,7 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(downloadProject);
     const newTerminal = vscode.commands.registerCommand("cloud-collaboration.newTerminal", showErrorWrap(() => Project.Instance?.newTerminal()));
     context.subscriptions.push(newTerminal);
-    const uploadFiles = vscode.commands.registerCommand("cloud-collaboration.uploadFiles", showErrorWrap(() => Project.Instance?.uploadFiles()));
+    const uploadFiles = vscode.commands.registerCommand("cloud-collaboration.uploadFiles", showErrorWrap((uri: vscode.Uri) => Project.Instance?.uploadFiles(uri)));
     context.subscriptions.push(uploadFiles);
 
     // Register editors

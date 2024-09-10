@@ -446,7 +446,7 @@ export class FileSystem {
                                 vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files")
                                 .then(showErrorWrap(async (item: string | undefined) => {
                                     if (item) {
-                                        await Project.Instance?.uploadFiles();
+                                        await Project.Instance?.uploadFiles(collaborationFolder);
                                     }
                                 }));
                                 state.content = null;
@@ -621,10 +621,11 @@ export class FileSystem {
     /**
      * @brief Copy given files to the project folder
      * @param files URIs of the files to add
+     * @param name Name of the folder to add the files to
     **/
-    public async addFiles(files: vscode.Uri[]) : Promise<void> {
+    public async addFiles(files: vscode.Uri[], name: string) : Promise<void> {
         for (const file of files) {
-            await vscode.workspace.fs.copy(file, this.projectUri(file.path.substring(file.path.lastIndexOf("/") + 1)));
+            await vscode.workspace.fs.copy(file, this.projectUri(name + "/" + file.path.substring(file.path.lastIndexOf("/") + 1)));
         }
     }
 

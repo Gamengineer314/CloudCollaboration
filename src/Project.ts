@@ -3,7 +3,7 @@ import { GoogleDrive, GoogleDriveProject, Permission } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { collaborationFolder, context, currentFolder } from "./extension";
-import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, waitFor } from "./util";
+import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, waitFor, collaborationName } from "./util";
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 
 
@@ -262,13 +262,24 @@ export class Project {
 
     /**
      * @brief Prompt the user to select files to add to the project
+     * @param uri The URI of the folder to add the files to
     **/
-    public async uploadFiles() : Promise<void> {
+    public async uploadFiles(uri: vscode.Uri) : Promise<void> {
+        // Prompt user to select files
         const files = await vscode.window.showOpenDialog({ defaultUri: vscode.Uri.parse("file:///"), title: "Select files to upload", canSelectMany: true });
         if (!files) {
             throw new Error("Upload failed : no files selected");
         }
-        await this.fileSystem.addFiles(files);
+
+        // Get the name of the folder
+        let name = collaborationName(uri);
+        const stat = await vscode.workspace.fs.stat(uri);
+        if (stat.type !== vscode.FileType.Directory) {
+            name = name.substring(0, name.lastIndexOf("/"));
+        }
+
+        // Upload files
+        await this.fileSystem.addFiles(files, name);
         vscode.window.showInformationMessage("Files uploaded successfully");
     }
 

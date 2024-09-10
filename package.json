@@ -63,14 +63,6 @@
           "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected"
         },
         {
-          "command": "cloud-collaboration.createProject",
-          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && workspaceFolderCount == 1"
-        },
-        {
-          "command": "cloud-collaboration.joinProject",
-          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && workspaceFolderCount == 1"
-        },
-        {
           "command": "cloud-collaboration.connect",
           "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && cloud-collaboration.liveShareAvailable && workspaceFolderCount == 1"
         },
@@ -79,11 +71,21 @@
           "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
-          "command": "cloud-collaboration.downloadProject",
+          "command": "cloud-collaboration.newTerminal",
           "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "cloud-collaboration.createProject",
+          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
-          "command": "cloud-collaboration.newTerminal",
+          "command": "cloud-collaboration.joinProject",
+          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.downloadProject",
           "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
@@ -112,6 +114,14 @@
         ]
       }
     ],
+    "terminal": {
+      "profiles": [
+        {
+          "title": "Cloud Collaboration",
+          "id": "cloud-collaboration.terminal"
+        }
+      ]
+    },
     "colors": [
       {
         "id": "cloudCollaboration.ignore",
@@ -143,15 +153,7 @@
           "highContrastLight": "#007acc"
         }
       }
-    ],
-    "terminal": {
-      "profiles": [
-        {
-          "title": "Cloud Collaboration",
-          "id": "cloud-collaboration.terminal"
-        }
-      ]
-    }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
