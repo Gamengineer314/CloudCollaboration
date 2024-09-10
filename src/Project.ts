@@ -41,32 +41,15 @@ export class Project {
         const project = context.globalState.get<Project>("projectState");
         const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
         if (project) { // Connected to a project
-            Project.instance = new Project(project.project, project.host, FileSystem.copy(project.fileSystem));
-            context.globalState.update("projectState", undefined);
-
-            if (previousFolder) { // Activate previous folder
+            // Activate previous folder
+            if (previousFolder) {
                 previousFolder.active = true;
                 context.globalState.update("previousFolder", previousFolder);
             }
 
-            // Wait for the session to be joined
-            if (!LiveShare.Instance) {
-                throw new Error("Can't connect to project : Live Share not initialized");
-            }
-            LiveShare.Instance.waitForSession().then(async () => {
-                await waitFor(() => vscode.window.activeTextEditor !== undefined);
-
-                // Start synchronization
-                await Project.Instance?.fileSystem.startSync(false);
-
-                // Update file decorations
-                await IgnoreStaticDecorationProvider.Instance?.update();
-
-                // Open config
-                await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-                await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-                await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
-            });
+            // Continue connecting
+            context.globalState.update("projectState", undefined);
+            Project.continueConnect(new Project(project.project, project.host, FileSystem.copy(project.fileSystem)));
         }
         else { // Come back to previous folder if activated
             if (previousFolder && previousFolder.active) {
@@ -161,7 +144,7 @@ export class Project {
 
             if (host) {
                 // Create instance
-                Project.instance = new Project(project, host, fileSystem);
+                const instance = new Project(project, host, fileSystem);
                 await fileSystem.download();
 
                 // Create Live Share session
@@ -170,14 +153,16 @@ export class Project {
 
                 // Start synchronization
                 await fileSystem.startSync(true);
-                Project.instance.startUpload();
+                instance.startUpload();
 
                 // Update file decorations
                 await IgnoreStaticDecorationProvider.Instance?.update();
 
                 // Open config
-                await Project.getConfig();
                 await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+
+                // Connected
+                Project.instance = instance;
                 await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
             }
             else {
@@ -185,6 +170,36 @@ export class Project {
                 context.globalState.update("projectState", new Project(project, host, fileSystem));
                 await LiveShare.Instance.joinSession(state.url);
             }
+        }));
+    }
+
+
+    /**
+     * @brief Continue connecting to the project after the extension restarted
+     * @param instance Project instance
+    **/
+    public static async continueConnect(instance: Project) : Promise<void> {
+        await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(async () => {
+            // Wait until the Live Share session is ready
+            if (!LiveShare.Instance) {
+                throw new Error("Can't connect to project : Live Share not initialized");
+            }
+            await LiveShare.Instance.waitForSession();
+            await waitFor(() => vscode.window.activeTextEditor !== undefined);
+
+            // Start synchronization
+            await Project.Instance?.fileSystem.startSync(false);
+
+            // Update file decorations
+            await IgnoreStaticDecorationProvider.Instance?.update();
+
+            // Open config
+            await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+            await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+            
+            // Connected
+            Project.instance = instance;
+            await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
         }));
     }
 
@@ -331,6 +346,7 @@ export class Project {
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as GoogleDriveProject;
             config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.Instance.getEmail()));
             await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
+            vscode.window.showInformationMessage("Project configuration file created");
         }
         return config;
     }
