@@ -112,6 +112,15 @@
             "filenamePattern": "*.collabconfig"
           }
         ]
+      },
+      {
+        "viewType": "cloud-collaboration.binaryFileEditor",
+        "displayName": "Cloud Collaboration Binary File Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.collab64"
+          }
+        ]
       }
     ],
     "terminal": {

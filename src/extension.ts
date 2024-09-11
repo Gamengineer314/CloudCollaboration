@@ -7,6 +7,7 @@ import { ConfigEditorProvider } from "./ConfigEditor";
 import { showErrorWrap } from "./util";
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 import { ProjectProfileProvider } from "./ProjectProfile";
+import { BinaryFileEditorProvider } from "./BinaryFileEditor";
 
 
 export let context : vscode.ExtensionContext;
@@ -57,6 +58,8 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(launchEditor);
     const configEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.configEditor", new ConfigEditorProvider());
     context.subscriptions.push(configEditor);
+    const binaryFileEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.binaryFileEditor", new BinaryFileEditorProvider());
+    context.subscriptions.push(binaryFileEditor);
 
     // Register file decorations
     const ignoreStaticDecorationProvider = vscode.window.registerFileDecorationProvider(new IgnoreStaticDecorationProvider());

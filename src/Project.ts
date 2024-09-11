@@ -180,10 +180,10 @@ export class Project {
                 await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
 
                 // Setup workspace
+                await IgnoreStaticDecorationProvider.Instance?.update();
                 await vscode.commands.executeCommand("workbench.action.closeAllEditors");
                 await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
                 await vscode.commands.executeCommand("workbench.action.terminal.killAll");
-                await IgnoreStaticDecorationProvider.Instance?.update();
             }
             else {
                 // Save project state and join Live Share session (the extension will restart)
@@ -215,10 +215,10 @@ export class Project {
             await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
 
             // Setup workspace
+            await IgnoreStaticDecorationProvider.Instance?.update();
             await vscode.commands.executeCommand("workbench.action.closeAllEditors");
             await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
             await vscode.commands.executeCommand("workbench.action.terminal.killAll");
-            await IgnoreStaticDecorationProvider.Instance?.update();
         }));
     }
 
