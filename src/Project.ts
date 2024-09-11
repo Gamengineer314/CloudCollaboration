@@ -209,7 +209,7 @@ export class Project {
             await waitFor(() => vscode.window.activeTextEditor !== undefined);
 
             // Start synchronization
-            await Project.instance?.fileSystem.startSync(false);
+            await instance.fileSystem.startSync(false);
             
             // Connected
             Project._instance = instance;

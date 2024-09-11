@@ -272,8 +272,15 @@ export class FileSystem {
             for (const file of await vscode.workspace.fs.readDirectory(this.projectFolder)) {
                 await vscode.workspace.fs.delete(this.projectUri(file[0]), { recursive: true });
             }
-            for (const file of await collaborationRecurListFolder()) {
-                await vscode.workspace.fs.copy(collaborationUri(file), this.projectUri(this.toProjectName(file)));
+            for (let file of await collaborationRecurListFolder()) {
+                const collabUri = collaborationUri(file);
+                let content = await vscode.workspace.fs.readFile(collabUri);
+                if (file.endsWith(".collab64")) {
+                    file = file.substring(0, file.length - 9);
+                    this.binaryFiles.add(file);
+                    content = fromBase64(new TextDecoder().decode(content));
+                }
+                await vscode.workspace.fs.writeFile(this.projectUri(file), content);
             }
         }
 
