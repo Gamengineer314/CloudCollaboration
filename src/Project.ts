@@ -205,7 +205,7 @@ export class Project {
                 throw new Error("Can't connect to project : Live Share not initialized");
             }
             await LiveShare.instance.waitForSession();
-            await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+            await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "default");
             await waitFor(() => vscode.window.activeTextEditor !== undefined);
 
             // Start synchronization
