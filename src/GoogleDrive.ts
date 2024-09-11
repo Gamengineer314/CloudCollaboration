@@ -14,8 +14,8 @@ const SCOPE = "https://www.googleapis.com/auth/drive.file";
 
 export class GoogleDrive {
 
-    private static instance : GoogleDrive | undefined;
-    public static get Instance() : GoogleDrive | undefined { return this.instance; };
+    private static _instance : GoogleDrive | undefined;
+    public static get instance() : GoogleDrive | undefined { return GoogleDrive._instance; };
 
     private static server : Server | undefined; // Currently running localhost server
 
@@ -36,7 +36,7 @@ export class GoogleDrive {
         if (token) {
             const auth = new Auth.OAuth2Client(CLIENT_ID, CLIENT_SECRET, LOCALHOST);
             auth.setCredentials({ refresh_token: token });
-            GoogleDrive.instance = new GoogleDrive(auth);
+            GoogleDrive._instance = new GoogleDrive(auth);
             vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", true);
         }
     }
@@ -81,7 +81,7 @@ export class GoogleDrive {
                         if (!error && tokens && tokens.refresh_token) {
                             auth.setCredentials(tokens);
                             context.secrets.store("googleRefreshToken", tokens.refresh_token);
-                            GoogleDrive.instance = new GoogleDrive(auth);
+                            GoogleDrive._instance = new GoogleDrive(auth);
                             vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", true);
                             vscode.window.showInformationMessage("Authenticated to Google Drive");
                             response.end("Authentication succeeded. You can close this tab and go back to VSCode.");
@@ -131,7 +131,7 @@ export class GoogleDrive {
     **/
     public static unauthenticate() : void {
         context.secrets.delete("googleRefreshToken");
-        GoogleDrive.instance = undefined;
+        GoogleDrive._instance = undefined;
         vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", false);
         vscode.window.showInformationMessage("Unauthenticated from Google Drive");
     }
@@ -141,7 +141,7 @@ export class GoogleDrive {
      * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
      * @param callback Callback that will be called with the project if a project is picked successfully
     **/
-    public async pickProject(callback: (project: GoogleDriveProject) => any ) : Promise<void> {
+    public async pickProject(callback: (project: DriveProject) => any ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
         GoogleDrive.server = createServer(showErrorWrap(async (request: IncomingMessage, response: ServerResponse<IncomingMessage>) => {
@@ -188,7 +188,7 @@ export class GoogleDrive {
                             result = "Project pick failed : invalid project. Please select the .collabfolder folder and all 3 .collabdynamic, .collabstatic and .collabstate files corresponding to the project you want to join.";
                         }
                         else {
-                            await callback(new GoogleDriveProject(folderID, dynamicID, staticID, stateID, name));
+                            await callback(new DriveProject(folderID, dynamicID, staticID, stateID, name));
                             result = "Project pick succeeded. You can close this tab and go back to VSCode.";
                         }
                     }
@@ -294,7 +294,7 @@ export class GoogleDrive {
      * @param name Name of the project
      * @returns Created project
     **/
-    public async createProject(name: string) : Promise<GoogleDriveProject> {
+    public async createProject(name: string) : Promise<DriveProject> {
         const folder = await this.drive.files.create({
             requestBody: {
                 name: name + ".collabfolder",
@@ -360,7 +360,7 @@ export class GoogleDrive {
             throw new Error("Failed to create .collaburl file");
         }
 
-        return new GoogleDriveProject(folder.data.id, dynamicFile.data.id, staticFile.data.id, stateFile.data.id, name);
+        return new DriveProject(folder.data.id, dynamicFile.data.id, staticFile.data.id, stateFile.data.id, name);
     }
 
 
@@ -369,7 +369,7 @@ export class GoogleDrive {
      * @param project Project to get the state for
      * @returns State of the project
     **/
-    public async getState(project: GoogleDriveProject) : Promise<ProjectState> {
+    public async getState(project: DriveProject) : Promise<ProjectState> {
         const state = await this.drive.files.get({ fileId: project.stateID, alt: "media" });
         return state.data as ProjectState;
     }
@@ -380,7 +380,7 @@ export class GoogleDrive {
      * @param project Project to set the state for
      * @param state State of the project
     **/
-    public async setState(project: GoogleDriveProject, state: ProjectState) : Promise<void> {
+    public async setState(project: DriveProject, state: ProjectState) : Promise<void> {
         await this.drive.files.update({
             fileId: project.stateID,
             media: {
@@ -396,7 +396,7 @@ export class GoogleDrive {
      * @param project Project to get the dynamic files for
      * @returns Dynamic files of the project
     **/
-    public async getDynamic(project: GoogleDriveProject) : Promise<Uint8Array> {
+    public async getDynamic(project: DriveProject) : Promise<Uint8Array> {
         const dynamicFile = await this.drive.files.get({ fileId: project.dynamicID, alt: "media" }, { responseType: "arraybuffer" });
         return new Uint8Array(dynamicFile.data as ArrayBuffer);
     }
@@ -407,7 +407,7 @@ export class GoogleDrive {
      * @param project Project to set the dynamic files for
      * @param dynamicFile Dynamic files of the project
     **/
-    public async setDynamic(project: GoogleDriveProject, dynamicFile: Uint8Array) : Promise<void> {
+    public async setDynamic(project: DriveProject, dynamicFile: Uint8Array) : Promise<void> {
         await this.drive.files.update({
             fileId: project.dynamicID,
             media: {
@@ -423,7 +423,7 @@ export class GoogleDrive {
      * @param project Project to get the static files for
      * @returns Static files of the project
     **/
-    public async getStatic(project: GoogleDriveProject) : Promise<Uint8Array> {
+    public async getStatic(project: DriveProject) : Promise<Uint8Array> {
         const staticFile = await this.drive.files.get({ fileId: project.staticID, alt: "media" }, { responseType: "arraybuffer" });
         return new Uint8Array(staticFile.data as ArrayBuffer);
     }
@@ -434,7 +434,7 @@ export class GoogleDrive {
      * @param project Project to set the static files for
      * @param staticFile Static files of the project
     **/
-    public async setStatic(project: GoogleDriveProject, staticFile: Uint8Array) : Promise<void> {
+    public async setStatic(project: DriveProject, staticFile: Uint8Array) : Promise<void> {
         await this.drive.files.update({
             fileId: project.staticID,
             media: {
@@ -451,7 +451,7 @@ export class GoogleDrive {
      * @param email Email of the user
      * @returns Permission ID
     **/
-    public async userShare(project: GoogleDriveProject, email: string) : Promise<Permission> {
+    public async userShare(project: DriveProject, email: string) : Promise<Permission> {
         const permission = await this.drive.permissions.create({
             fileId: project.folderID,
             requestBody: {
@@ -473,7 +473,7 @@ export class GoogleDrive {
      * @param project The project
      * @returns Permission ID
     **/
-    public async publicShare(project: GoogleDriveProject) : Promise<Permission> {
+    public async publicShare(project: DriveProject) : Promise<Permission> {
         const permission = await this.drive.permissions.create({
             fileId: project.folderID,
             requestBody: {
@@ -498,7 +498,7 @@ export class GoogleDrive {
      * @param project The project
      * @param id The permission to cancel
     **/
-    public async unshare(project: GoogleDriveProject, permission: Permission) : Promise<void> {
+    public async unshare(project: DriveProject, permission: Permission) : Promise<void> {
         await this.drive.permissions.delete({ fileId: project.folderID, permissionId: permission.id });
     }
     
@@ -506,7 +506,7 @@ export class GoogleDrive {
 
 
 
-export class GoogleDriveProject {
+export class DriveProject {
     public constructor(
         public folderID: string, 
         public dynamicID: string, 

@@ -21,7 +21,7 @@ export class BinaryFileEditorProvider implements CustomTextEditorProvider {
         }
 
         // If the project is not connected, throw an error
-        if (!Project.Instance) {
+        if (!Project.instance) {
             // Show error message, close the editor and return
             vscode.window.showErrorMessage("The project is not connected");
             vscode.commands.executeCommand("workbench.action.closeActiveEditor");
@@ -32,6 +32,6 @@ export class BinaryFileEditorProvider implements CustomTextEditorProvider {
         await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
 
         // Open the binary file
-        await Project.Instance.openProjectFile(collaborationFileName);
+        await Project.instance.openProjectFile(collaborationFileName);
     }
 }

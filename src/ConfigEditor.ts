@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { randomString, showErrorWrap } from './util';
 import { Config, Project } from './Project';
 import { context } from './extension';
-import { GoogleDrive, GoogleDriveProject, Permission } from './GoogleDrive';
+import { GoogleDrive } from './GoogleDrive';
 import { IgnoreStaticDecorationProvider } from './FileDecoration';
 
 
@@ -28,14 +28,14 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
             const crown = webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'crown.png'));
             const trash = webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'trash.png'));
 
-            if (!GoogleDrive.Instance) {
+            if (!GoogleDrive.instance) {
                 throw(new Error("Config Editor load failed : not authenticated"));
             }
 
             webviewPanel.webview.postMessage({ 
                 type: 'update',
                 config: project.shareConfig,
-                email: await GoogleDrive.Instance.getEmail(),
+                email: await GoogleDrive.instance.getEmail(),
                 uris: {
                     crown: crown.toString(),
                     trash: trash.toString()
@@ -69,10 +69,10 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 			switch (e.type) {
                 case 'on_load':
                     // Add the current user to the project members if not already in it
-                    if (!GoogleDrive.Instance) {
+                    if (!GoogleDrive.instance) {
                         throw new Error("Config Editor load failed : not authenticated");
                     }
-                    const email = await GoogleDrive.Instance.getEmail();
+                    const email = await GoogleDrive.instance.getEmail();
                     // Check if the user is already in the project members or public members or is the owner
                     if (project.shareConfig.members.every(m => m.name !== email) && project.shareConfig.publicMembers.every(m => m !== email) && project.shareConfig.owner !== email) {
                         await this.addToMembers(project, document, email);
@@ -111,14 +111,14 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                 case 'save_ignored':
                     await this.saveIgnored(e.value, project, document);
                     // Update file decorations
-                    await IgnoreStaticDecorationProvider.Instance?.update();
+                    await IgnoreStaticDecorationProvider.instance?.update();
 
                     return;
 
                 case 'save_static':
                     await this.saveStatic(e.value, project, document);
                     // Update file decorations
-                    await IgnoreStaticDecorationProvider.Instance?.update();
+                    await IgnoreStaticDecorationProvider.instance?.update();
 
                     return;
 			}
@@ -276,13 +276,13 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         await vscode.workspace.save(document.uri);
 
         // Remove the member from the google drive
-        if (!GoogleDrive.Instance) {
+        if (!GoogleDrive.instance) {
             throw new Error("Config Editor removeMember failed : not authenticated");
         }
-        if (!Project.Instance) {
+        if (!Project.instance) {
             throw new Error("Config Editor removeMember failed : not connected");
         }
-        await GoogleDrive.Instance.unshare(Project.Instance.Project, member);
+        await GoogleDrive.instance.unshare(Project.instance.driveProject, member);
 
         // Add little pop-up to confirm the removal
         vscode.window.showInformationMessage(`User ${member.name} removed from project`);
@@ -308,14 +308,14 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         await vscode.workspace.save(document.uri);
 
         // Remove the member from the google drive
-        if (!GoogleDrive.Instance) {
+        if (!GoogleDrive.instance) {
             throw new Error("Config Editor removeMember failed : not authenticated");
         }
-        if (!Project.Instance) {
+        if (!Project.instance) {
             throw new Error("Config Editor removeMember failed : not connected");
         }
 
-        await GoogleDrive.Instance.unshare(Project.Instance.Project, member);
+        await GoogleDrive.instance.unshare(Project.instance.driveProject, member);
 
         // Add little pop-up to confirm the removal
         vscode.window.showInformationMessage(`User ${member.name} removed from project`);
@@ -346,14 +346,14 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         }
 
         // Add the member to the google drive
-        if (!GoogleDrive.Instance) {
+        if (!GoogleDrive.instance) {
             throw new Error("Config Editor addMember failed : not authenticated");
         }
-        if (!Project.Instance) {
+        if (!Project.instance) {
             throw new Error("Config Editor addMember failed : not connected");
         }
         
-        const permission = await GoogleDrive.Instance.userShare(Project.Instance.Project, email);
+        const permission = await GoogleDrive.instance.userShare(Project.instance.driveProject, email);
         if (!permission) {
             throw new Error("Config Editor addMember failed : google drive error");
         }
@@ -379,14 +379,14 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
     **/
     private async enableGlobalSharing(project: Config, document: vscode.TextDocument) {
         // Call google drive to enable global sharing
-        if (!GoogleDrive.Instance) {
+        if (!GoogleDrive.instance) {
             throw new Error("Config Editor enableGlobalSharing failed : not authenticated");
         }
-        if (!Project.Instance) {
+        if (!Project.instance) {
             throw new Error("Config Editor enableGlobalSharing failed : not connected");
         }
 
-        const link = await GoogleDrive.Instance.publicShare(Project.Instance.Project);
+        const link = await GoogleDrive.instance.publicShare(Project.instance.driveProject);
 
         // add the link to the shareConfig
         project.shareConfig.public = link;
@@ -409,17 +409,17 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
     **/
     private async disableGlobalSharing(project: Config, document: vscode.TextDocument) {
         // Call google drive to disable global sharing
-        if (!GoogleDrive.Instance) {
+        if (!GoogleDrive.instance) {
             throw new Error("Config Editor disableGlobalSharing failed : not authenticated");
         }
-        if (!Project.Instance) {
+        if (!Project.instance) {
             throw new Error("Config Editor disableGlobalSharing failed : not connected");
         }
         if (!project.shareConfig.public) {
             throw new Error("Config Editor disableGlobalSharing failed : project not shared");
         }
 
-        await GoogleDrive.Instance.unshare(Project.Instance.Project, project.shareConfig.public);
+        await GoogleDrive.instance.unshare(Project.instance.driveProject, project.shareConfig.public);
 
         // Remove the link from the shareConfig
         project.shareConfig.public = null;

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { GoogleDriveProject } from './GoogleDrive';
+import { DriveProject } from './GoogleDrive';
 import { randomString } from './util';
 import { Project } from './Project';
 import { context } from './extension';
@@ -10,7 +10,7 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
     // Called when our custom editor is opened.
     public async resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, _token: vscode.CancellationToken) : Promise<void> {
         // Get the json from the opened .collablaunch file
-        const project = JSON.parse(document.getText()) as GoogleDriveProject;
+        const project = JSON.parse(document.getText()) as DriveProject;
 
         // Get if the .collablaunch file is in a subfolder
         const folder = vscode.workspace.workspaceFolders?.[0].uri;
@@ -25,7 +25,7 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
         webviewPanel.webview.options = {
             enableScripts: true,
         };
-        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.Instance !== undefined);
+        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined);
 
         // Receive message from the webview.
         webviewPanel.webview.onDidReceiveMessage(async e => {
@@ -43,7 +43,7 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
                 case 'disconnect':
                     await Project.disconnect();
                     // Update the webview
-                    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.Instance !== undefined);
+                    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined);
                     return;
             }
         });

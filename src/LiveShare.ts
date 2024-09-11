@@ -5,8 +5,8 @@ import { waitFor } from "./util";
 
 export class LiveShare {
 
-    private static instance : LiveShare | undefined = undefined;
-    public static get Instance() : LiveShare | undefined { return LiveShare.instance; }
+    private static _instance : LiveShare | undefined = undefined;
+    public static get instance() : LiveShare | undefined { return LiveShare._instance; }
 
 
     private liveShare : vlsl.LiveShare;
@@ -21,7 +21,7 @@ export class LiveShare {
     **/
     public static async activate() : Promise<void> {
         // Check instance
-        if (LiveShare.instance) {
+        if (LiveShare._instance) {
             throw new Error("LiveShare initialization failed : already initialized");
         }
 
@@ -31,7 +31,7 @@ export class LiveShare {
             throw new Error("LiveShare initialization failed : Live Share not available");
         }
 
-        LiveShare.instance = new LiveShare(liveShare);
+        LiveShare._instance = new LiveShare(liveShare);
         vscode.commands.executeCommand("setContext", "cloud-collaboration.liveShareAvailable", true);
     }
     

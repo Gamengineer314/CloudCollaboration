@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { Project } from "./Project";
-import { GoogleDrive, GoogleDriveProject, ProjectState } from "./GoogleDrive";
+import { GoogleDrive, DriveProject, ProjectState } from "./GoogleDrive";
 import { FilesDeserializer, FilesSerializer } from "./FilesSerialization";
 import { match } from "./FileRules";
 import { isBinary, toBase64, fromBase64 } from "./BinaryFiles";
@@ -19,19 +19,19 @@ export class FileSystem {
     
     private constructor(
         private state: ProjectState, 
-        private googleDriveProject: GoogleDriveProject,
+        private driveProject: DriveProject,
         private storageProject: StorageProject,
         private storageFolder: vscode.Uri,
         private projectFolder: vscode.Uri
     ) {}
 
-    public get State() : ProjectState { return this.state; }
-    public get ProjectPath() : string { return this.projectFolder.fsPath; }
+    public get projectState() : ProjectState { return this.state; }
+    public get projectPath() : string { return this.projectFolder.fsPath; }
 
     public static copy(fileSystem: FileSystem) : FileSystem {
         return new FileSystem(
             fileSystem.state,
-            fileSystem.googleDriveProject,
+            fileSystem.driveProject,
             fileSystem.storageProject,
             vscode.Uri.parse(fileSystem.storageFolder.path),
             vscode.Uri.parse(fileSystem.projectFolder.path)
@@ -44,7 +44,7 @@ export class FileSystem {
      * @param project The project
      * @param state Initial state of the project
     **/
-    public static async init(project: GoogleDriveProject, state: ProjectState) : Promise<FileSystem> {
+    public static async init(project: DriveProject, state: ProjectState) : Promise<FileSystem> {
         // Storage folders
         const storageFolder = context.storageUri;
         if (!storageFolder) {
@@ -80,14 +80,14 @@ export class FileSystem {
      * @param folder The folder (default: collaboration folder)
     **/
     public async download(folder: vscode.Uri | null = null) : Promise<void> {
-        if (!GoogleDrive.Instance) {
+        if (!GoogleDrive.instance) {
             throw new Error("Download failed : not authenticated");
         }
 
         // Download dynamic files if they were changed
         let dynamicFiles;
         if (this.state.dynamicVersion > this.storageProject.version) {
-            dynamicFiles = await GoogleDrive.Instance.getDynamic(this.googleDriveProject);
+            dynamicFiles = await GoogleDrive.instance.getDynamic(this.driveProject);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabdynamic"), dynamicFiles);
         }
         else {
@@ -97,7 +97,7 @@ export class FileSystem {
         // Download static files if they were changed
         let staticFiles;
         if (this.state.staticVersion > this.storageProject.version) {
-            staticFiles = await GoogleDrive.Instance.getStatic(this.googleDriveProject);
+            staticFiles = await GoogleDrive.instance.getStatic(this.driveProject);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), staticFiles);
         }
         else {
@@ -198,7 +198,7 @@ export class FileSystem {
         this.previousStatic = newStatic;
 
         // Upload files if they were changed
-        if (!GoogleDrive.Instance) {
+        if (!GoogleDrive.instance) {
             throw new Error("Upload failed : not authenticated");
         }
         if (dynamicChanged) {
@@ -207,7 +207,7 @@ export class FileSystem {
                 serializer.add(this.toCollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
             }
             const dynamicFiles = serializer.serialize();
-            await GoogleDrive.Instance.setDynamic(this.googleDriveProject, dynamicFiles);
+            await GoogleDrive.instance.setDynamic(this.driveProject, dynamicFiles);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabdynamic"), dynamicFiles);
             this.state.dynamicVersion = this.storageProject.version + 1;
         }
@@ -217,14 +217,14 @@ export class FileSystem {
                 serializer.add(this.toCollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
             }
             const staticFiles = serializer.serialize();
-            await GoogleDrive.Instance.setStatic(this.googleDriveProject, staticFiles);
+            await GoogleDrive.instance.setStatic(this.driveProject, staticFiles);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), staticFiles);
             this.state.staticVersion = this.storageProject.version + 1;
         }
 
         // Increment version if files were changed
         if (dynamicChanged || staticChanged) {
-            await GoogleDrive.Instance.setState(this.googleDriveProject, this.state);
+            await GoogleDrive.instance.setState(this.driveProject, this.state);
             this.storageProject.version++;
             await vscode.workspace.fs.writeFile(this.storageUri("project.json"), new TextEncoder().encode(JSON.stringify(this.storageProject)));
         }
@@ -446,7 +446,7 @@ export class FileSystem {
                                 vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files")
                                 .then(showErrorWrap(async (item: string | undefined) => {
                                     if (item) {
-                                        await Project.Instance?.uploadFiles(collaborationFolder);
+                                        await Project.instance?.uploadFiles(collaborationFolder);
                                     }
                                 }));
                                 state.content = null;

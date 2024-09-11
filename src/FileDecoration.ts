@@ -9,32 +9,29 @@ let ignoreRules: Array<string> = new Array<string>();
 
 export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
 
-    readonly onDidChangeFileDecorations: Event<Uri[]>;
-    private listeners: ((e: Uri[]) => any)[] = [];
+    private listeners: Set<(e: Uri[]) => any> = new Set<(e: Uri[]) => any>();
 
-    private static instance: IgnoreStaticDecorationProvider | undefined = undefined;
-    public static get Instance() { return this.instance; }
+    private static _instance: IgnoreStaticDecorationProvider | undefined = undefined;
+    public static get instance() { return IgnoreStaticDecorationProvider._instance; }
 
     constructor() {
-        this.onDidChangeFileDecorations = (listener: (e: Uri[]) => any, thisArgs?: any, disposables?: Disposable[]) => {
-            const func = listener.bind(thisArgs);
-            this.listeners.push(func);
-            const disposable = new Disposable(() => {
-                this.listeners.splice(this.listeners.indexOf(func), 1);
-            });
-            if (disposables) {
-                disposables.push(disposable);
-            }
-            return disposable;
-        };
-
         if (IgnoreStaticDecorationProvider.instance) {
             throw new Error("Only one instance of IgnoreStaticDecorationProvider can be created");
         }
-        IgnoreStaticDecorationProvider.instance = this;
+        IgnoreStaticDecorationProvider._instance = this;
     }
 
-    provideFileDecoration(uri: Uri, _token: CancellationToken): FileDecoration | undefined {
+    public onDidChangeFileDecorations(listener: (e: Uri[]) => any, thisArgs?: any, disposables?: Disposable[]): Disposable {
+        const func = listener.bind(thisArgs);
+        this.listeners.add(func);
+        const disposable = new Disposable(this.listeners.delete.bind(this.listeners, func));
+        if (disposables) {
+            disposables.push(disposable);
+        }
+        return disposable;
+    }
+
+    public provideFileDecoration(uri: Uri, _token: CancellationToken): FileDecoration | undefined {
         // Remove .collab64 at the end of the file name if it exists
         const fileUri = uri.with({ path: uri.path.replace(".collab64", '') });
 
@@ -51,7 +48,7 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
 
 
         // If the project is not connected, return undefined
-        if (!Project.Instance) {
+        if (!Project.instance) {
             return undefined;
         }
 
@@ -77,7 +74,10 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
 
     public async update() {
         // Get the config from the getConfig function
-        const config = await Project.getConfig();
+        if (!Project.instance) {
+            throw new Error("File decoration failed : not connected");
+        }
+        const config = await Project.instance.getConfig();
 
         // Get the static and ignore rules
         staticRules = config.filesConfig.staticRules;
