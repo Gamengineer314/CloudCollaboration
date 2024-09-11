@@ -1,5 +1,5 @@
 import { CancellationToken, FileDecoration, FileDecorationProvider, ThemeColor, Uri, Event, Disposable } from "vscode";
-import { collaborationName, collaborationRecurListFolder, collaborationUri } from "./util";
+import { collaborationName, collaborationRecurListFolder, collaborationUri, currentRecurListFolder, currentUri } from "./util";
 import { match } from "./FileRules";
 import { Project } from "./Project";
 
@@ -61,7 +61,7 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
         const collaborationFileName = collaborationName(fileUri);
         
         // Check if the file is a static or ignore file
-        if (match(collaborationFileName, ignoreRules)) {
+        if (match(collaborationFileName, ignoreRules) || collaborationFileName === "") {
             return {
                 color: new ThemeColor("cloudCollaboration.ignore"),
             };
@@ -78,21 +78,18 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
     public async update() {
         // Get the config from the getConfig function
         const config = await Project.getConfig();
-        if (!config) {
-            return;
-        }
 
         // Get the static and ignore rules
         staticRules = config.filesConfig.staticRules;
         ignoreRules = config.filesConfig.ignoreRules;
-        console.log("Ignore rules: ", ignoreRules);
 
 
         // Update the decorations
         // Get all names
-        const names = await collaborationRecurListFolder();
+        const names = await currentRecurListFolder();
+        
         // Convert to URIs using collaborationUri()
-        const uris = names.map(name => collaborationUri(name));
+        const uris = names.map(name => currentUri(name));
         for (const listener of this.listeners) {
             listener(uris);
         }

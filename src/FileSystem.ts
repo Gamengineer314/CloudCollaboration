@@ -636,7 +636,7 @@ export class FileSystem {
     **/
     public async openFile(name: string) : Promise<void> {
         const uri = this.projectUri(this.toProjectName(name));
-        // TO DO
+        await vscode.commands.executeCommand("vscode.open", uri);
     }
 
 
