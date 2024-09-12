@@ -3,7 +3,7 @@ import { GoogleDrive, DriveProject, Permission } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { collaborationFolder, context, currentFolder } from "./extension";
-import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, waitFor, collaborationName } from "./util";
+import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, sleep, waitFor, collaborationName } from "./util";
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 
 
@@ -21,7 +21,8 @@ export class Project {
     private static _instance : Project | undefined = undefined;
     public static get instance() : Project | undefined { return Project._instance; }
 
-    private intervalID : NodeJS.Timeout | undefined = undefined;
+    private uploading : boolean = false;
+    private mustUpload : boolean = false;
 
     private constructor(
         private project: DriveProject,
@@ -242,20 +243,21 @@ export class Project {
 
             // Leave or end Live Share session
             const config = await Project.instance.getConfig();
-            Project.instance.fileSystem.stopSync();
-            await LiveShare.instance.exitSession();
             if (Project.instance.host) {
                 const state = Project.instance.fileSystem.projectState;
                 state.url = "";
                 await GoogleDrive.instance.setState(Project.instance.project, state);
-                await Project.instance.fileSystem.upload(config.filesConfig);
+                await Project.instance.stopUpload();
+                await LiveShare.instance.exitSession();
+                Project.instance.fileSystem.stopSync();
                 await Project.instance.fileSystem.clear(config.filesConfig, true);
             }
             else {
+                Project.instance.fileSystem.stopSync();
+                await LiveShare.instance.exitSession();
                 await Project.instance.fileSystem.clear(config.filesConfig, false);
             }
             
-            Project.instance.stopUpload();
             Project._instance = undefined;
             await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
             await vscode.commands.executeCommand("workbench.action.terminal.killAll");
@@ -354,22 +356,38 @@ export class Project {
      * @brief Start uploading files regularly to Google Drive
     **/
     private startUpload() : void {
-        this.intervalID = setInterval(showErrorWrap(async () => {
-            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Uploading to Google Drive..." }, 
-                showErrorWrap(async () => await this.fileSystem.upload((await this.getConfig()).filesConfig))
-            );
-        }), 60_000);
+        this.mustUpload = true;
+        this.upload();
     }
 
+    private async upload() : Promise<void> {
+        while (true) {
+            await sleep(60_000);
+            if (!this.mustUpload) {
+                break;
+            }
+            this.uploading = true;
+            await vscode.commands.executeCommand("workbench.action.files.saveAll");
+            await sleep(1000);
+            await this.fileSystem.upload((await this.getConfig()).filesConfig);
+            this.uploading = false;
+            if (!this.mustUpload) {
+                break;
+            }
+        }
+    }
 
     /**
-     * @brief Stop uploading files regularly
+     * @brief Stop uploading files regularly to Google Drive
     **/
-    private stopUpload() : void {
-        if (this.intervalID) {
-            clearInterval(this.intervalID);
-            this.intervalID = undefined;
+    private async stopUpload() : Promise<void> {
+        this.mustUpload = false;
+        if (this.uploading) {
+            await waitFor(() => !this.uploading);
         }
+        await vscode.commands.executeCommand("workbench.action.files.saveAll");
+        await sleep(1000);
+        await this.fileSystem.upload((await this.getConfig()).filesConfig);
     }
 
 }
