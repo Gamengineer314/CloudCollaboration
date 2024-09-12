@@ -10,11 +10,12 @@ import { context, collaborationFolder } from "./extension";
 
 export class FileSystem {
 
-    private previousDynamic : Map<string, number> = new Map<string, number>(); // key: name, value: last modified time
-    private previousStatic : Map<string, number> = new Map<string, number>();
     private files : Map<string, FileState> = new Map<string, FileState>();
-    private binaryFiles : Set<string> = new Set<string>; // Name of all binary files
-    private createdFiles : Set<string> = new Set<string>; // Name of the files that were just created by the user
+    private filesContent : Map<string, FileContent> = new Map<string, FileContent>();
+    private previousDynamic : Set<string> = new Set<string>();
+    private previousStatic : Set<string> = new Set<string>();
+    private binaryFiles : Set<string> = new Set<string>(); // Name of all binary files
+    private createdFiles : Set<string> = new Set<string>(); // Name of the files that were just created by the user
     private syncDisposables : vscode.Disposable[] = [];
     
     private constructor(
@@ -111,8 +112,7 @@ export class FileSystem {
                 this.binaryFiles.add(file.name);
             }
             await vscode.workspace.fs.writeFile(this.projectUri(file.name), file.content);
-            const time = (await vscode.workspace.fs.stat(this.projectUri(file.name))).mtime;
-            this.previousDynamic.set(file.name, time);
+            this.previousDynamic.add(file.name);
         }
         for (const file of new FilesDeserializer(staticFiles)) {
             if (file.name.endsWith(".collab64")) {
@@ -120,14 +120,17 @@ export class FileSystem {
                 this.binaryFiles.add(file.name);
             }
             await vscode.workspace.fs.writeFile(this.projectUri(file.name), file.content);
-            const time = (await vscode.workspace.fs.stat(this.projectUri(file.name))).mtime;
-            this.previousStatic.set(file.name, time);
+            this.previousStatic.add(file.name);
         }
 
         // Load files in the folder
         for (const file of await recurListFolder(this.projectFolder)) {
             if (folder === null) {
                 let content = await vscode.workspace.fs.readFile(this.projectUri(file));
+                const state = new FileState();
+                state.content = content;
+                this.files.set(file, state);
+                this.filesContent.set(file, new FileContent(content, false));
                 if (this.binaryFiles.has(file)) {
                     content = new TextEncoder().encode(toBase64(content));
                 }
@@ -153,43 +156,39 @@ export class FileSystem {
     **/
     public async upload(config: FilesConfig) : Promise<void> {
         // Check if files were changed
-        let newDynamic = new Map<string, number>();
+        let newDynamic = new Set<string>();
         let dynamicChanged = false;
-        let newStatic = new Map<string, number>();
+        let newStatic = new Set<string>();
         let staticChanged = false;
-        const names = await recurListFolder(this.projectFolder);
-        for (const name of names) {
+        for (const [name, content] of this.filesContent) {
             if (match(name, config.ignoreRules)) { // Ignore ignored files
                 continue;
             }
 
             if (match(name, config.staticRules)) { // Static file
-                const lastModified = (await vscode.workspace.fs.stat(this.projectUri(name))).mtime;
-                newStatic.set(name, lastModified);
+                newStatic.add(name);
                 if (!staticChanged) { // Check if file was changed since last upload
-                    const previousLastModified = this.previousStatic.get(name);
-                    if (!previousLastModified || lastModified > previousLastModified) {
+                    if (content.modified || !this.previousStatic.has(name)) {
                         staticChanged = true;
                     }
                 }
             }
             else { // Dynamic file
-                const lastModified = (await vscode.workspace.fs.stat(this.projectUri(name))).mtime;
-                newDynamic.set(name, lastModified);
+                newDynamic.add(name);
                 if (!dynamicChanged) { // Check if file was changed since last upload
-                    const previousLastModified = this.previousDynamic.get(name);
-                    if (!previousLastModified || lastModified > previousLastModified) {
+                    if (content.modified || !this.previousDynamic.has(name)) {
                         dynamicChanged = true;
                     }
                 }
             }
+            content.modified = false;
         }
-        for (const name of this.previousDynamic.keys()) {
+        for (const name of this.previousDynamic) {
             if (!newDynamic.has(name)) { // Check if file was deleted since last upload
                 dynamicChanged = true;
             }
         }
-        for (const name of this.previousStatic.keys()) {
+        for (const name of this.previousStatic) {
             if (!newStatic.has(name)) { // Check if file was deleted since last upload
                 staticChanged = true;
             }
@@ -203,8 +202,8 @@ export class FileSystem {
         }
         if (dynamicChanged) {
             const serializer = new FilesSerializer();
-            for (const name of newDynamic.keys()) {
-                serializer.add(this.toCollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
+            for (const name of newDynamic) {
+                serializer.add(this.toCollabName(name), this.filesContent.get(name)!.content);
             }
             const dynamicFiles = serializer.serialize();
             await GoogleDrive.instance.setDynamic(this.driveProject, dynamicFiles);
@@ -213,8 +212,8 @@ export class FileSystem {
         }
         if (staticChanged) {
             const serializer = new FilesSerializer();
-            for (const name of newStatic.keys()) {
-                serializer.add(this.toCollabName(name), await vscode.workspace.fs.readFile(this.projectUri(name)));
+            for (const name of newStatic) {
+                serializer.add(this.toCollabName(name), this.filesContent.get(name)!.content);
             }
             const staticFiles = serializer.serialize();
             await GoogleDrive.instance.setStatic(this.driveProject, staticFiles);
@@ -354,16 +353,6 @@ export class FileSystem {
                 this.createdFiles.add(collaborationName(file));
             }
         })));
-
-        // Remove old files from memory
-        setInterval(() => {
-            const now = Date.now();
-            for (const [name, state] of this.files) {
-                if (now - state.lastModified > 10000) {
-                    this.files.delete(name);
-                }
-            }
-        }, 10000);
     }
 
 
@@ -383,7 +372,6 @@ export class FileSystem {
             state = new FileState();
             this.files.set(projectName, state);
         }
-        state.lastModified = Date.now();
 
         // Check if already modifying
         if (state.projectModifying) {
@@ -406,7 +394,7 @@ export class FileSystem {
             state.collaborationContinue = false;
 
             // Get content, file type and wether or not the file was deleted
-            let content: Uint8Array | null;
+            let content: Uint8Array | null | undefined;
             let directory: boolean;
             try {
                 const stat = await vscode.workspace.fs.stat(uri);
@@ -421,7 +409,7 @@ export class FileSystem {
                 }
                 else if (stat.type === vscode.FileType.Directory) {
                     console.log("Directory");
-                    content = new Uint8Array();
+                    content = undefined;
                     directory = true;
                 }
                 else {
@@ -477,7 +465,12 @@ export class FileSystem {
             }
 
         } while (state.collaborationContinue);
+
         state.collaborationModifying = false;
+        this.filesContent.delete(projectName);
+        if (state.content) {
+            this.filesContent.set(projectName, new FileContent(state.content, true));
+        }
         console.log("End collaboration modified");
     }
 
@@ -498,7 +491,6 @@ export class FileSystem {
             state = new FileState();
             this.files.set(projectName, state);
         }
-        state.lastModified = Date.now();
 
         // Check if already modifying
         if (state.collaborationModifying) {
@@ -517,7 +509,7 @@ export class FileSystem {
             state.projectContinue = false;
 
             // Get content, file type and wether or not the file was deleted
-            let content: Uint8Array | null;
+            let content: Uint8Array | null | undefined;
             let directory: boolean;
             try {
                 const stat = await vscode.workspace.fs.stat(uri);
@@ -529,7 +521,7 @@ export class FileSystem {
                 }
                 else if (stat.type === vscode.FileType.Directory) {
                     console.log("Directory");
-                    content = new Uint8Array();
+                    content = undefined;
                     directory = true;
                 }
                 else {
@@ -595,7 +587,12 @@ export class FileSystem {
             }
 
         } while (state.projectContinue);
+
         state.projectModifying = false;
+        this.filesContent.delete(projectName);
+        if (state.content) {
+            this.filesContent.set(projectName, new FileContent(state.content, true));
+        }
         console.log("End project modified");
     }
 
@@ -652,21 +649,19 @@ export class FileSystem {
      * @param previousContent Previous content of the file
      * @param newContent Possibly new content of the file
     **/
-    private wasModified(previousContent: Uint8Array | null | undefined, newContent: Uint8Array | null) : boolean {
-        if (previousContent === null && newContent === null) { // File already deleted
+    private wasModified(previousContent: Uint8Array | null | undefined, newContent: Uint8Array | null | undefined) : boolean {
+        if (previousContent === newContent) {
             return false;
         }
-        if (previousContent === undefined || // No content stored in memory
-            (!previousContent || !newContent) || // File deleted or created
-            previousContent.length !== newContent.length) { // Length modified
+        if (!previousContent || !newContent || previousContent.length !== newContent.length) {
             return true;
         }
         for (let i = 0; i < newContent.length; i++) {
-            if (newContent[i] !== previousContent[i]) { // Byte modified
+            if (newContent[i] !== previousContent[i]) {
                 return true;
             }
         }
-        return false; // File not modified
+        return false;
     }
 
 
@@ -740,12 +735,20 @@ class StorageProject {
 
 
 class FileState {
-    public content: Uint8Array | null | undefined = undefined;
+    public content: Uint8Array | null | undefined = undefined; // null: deleted, undefined: directory or not yet assigned
     public projectModifying: boolean = false;
     public projectContinue: boolean = false;
     public collaborationModifying: boolean = false;
     public collaborationContinue: boolean = false;
     public autoSave: boolean = false;
     public saveResolve: ((value: void | PromiseLike<void>) => void) | null = null;
-    public lastModified: number = 0;
+}
+
+
+
+class FileContent {
+    public constructor(
+        public content: Uint8Array,
+        public modified: boolean
+    ) {}
 }
