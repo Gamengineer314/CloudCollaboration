@@ -281,7 +281,7 @@ export class Project {
 
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Downloading project..." }, showErrorWrap(async () => {
             // Download files (without .collabconfig)
-            await this.fileSystem.download(folder[0]);
+            await this.fileSystem.copyFiles(folder[0]);
             await vscode.workspace.fs.delete(fileUri(".collabconfig", folder[0]));
             vscode.window.showInformationMessage("Project downloaded successfully");
         }));

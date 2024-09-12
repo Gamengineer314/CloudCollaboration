@@ -77,17 +77,18 @@ export class FileSystem {
 
 
     /**
-     * @brief Download files from Google Drive to a given folder
-     * @param folder The folder (default: collaboration folder)
+     * @brief Download files from Google Drive to the project and current folder
     **/
-    public async download(folder: vscode.Uri | null = null) : Promise<void> {
+    public async download() : Promise<void> {
         if (!GoogleDrive.instance) {
             throw new Error("Download failed : not authenticated");
         }
+        console.log("Download");
 
         // Download dynamic files if they were changed
         let dynamicFiles;
         if (this.state.dynamicVersion > this.storageProject.version) {
+            console.log("Dynamic changed");
             dynamicFiles = await GoogleDrive.instance.getDynamic(this.driveProject);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabdynamic"), dynamicFiles);
         }
@@ -98,6 +99,7 @@ export class FileSystem {
         // Download static files if they were changed
         let staticFiles;
         if (this.state.staticVersion > this.storageProject.version) {
+            console.log("Static changed");
             staticFiles = await GoogleDrive.instance.getStatic(this.driveProject);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), staticFiles);
         }
@@ -125,23 +127,18 @@ export class FileSystem {
 
         // Load files in the folder
         for (const file of await recurListFolder(this.projectFolder)) {
-            if (folder === null) {
-                let content = await vscode.workspace.fs.readFile(this.projectUri(file));
-                const state = new FileState();
-                state.content = content;
-                this.files.set(file, state);
-                this.filesContent.set(file, new FileContent(content, false));
-                if (this.binaryFiles.has(file)) {
-                    content = new TextEncoder().encode(toBase64(content));
-                }
-                await vscode.workspace.fs.writeFile(
-                    collaborationUri(this.toCollabName(file)),
-                    content
-                );
+            let content = await vscode.workspace.fs.readFile(this.projectUri(file));
+            const state = new FileState();
+            state.content = content;
+            this.files.set(file, state);
+            this.filesContent.set(file, new FileContent(content, false));
+            if (this.binaryFiles.has(file)) {
+                content = new TextEncoder().encode(toBase64(content));
             }
-            else {
-                await vscode.workspace.fs.copy(this.projectUri(file), fileUri(file, folder));
-            }
+            await vscode.workspace.fs.writeFile(
+                collaborationUri(this.toCollabName(file)),
+                content
+            );
         }
 
         // Update version
@@ -155,6 +152,8 @@ export class FileSystem {
      * @param config Files configuration
     **/
     public async upload(config: FilesConfig) : Promise<void> {
+        console.log("Upload");
+
         // Check if files were changed
         let newDynamic = new Set<string>();
         let dynamicChanged = false;
@@ -201,6 +200,7 @@ export class FileSystem {
             throw new Error("Upload failed : not authenticated");
         }
         if (dynamicChanged) {
+            console.log("Dynamic changed");
             const serializer = new FilesSerializer();
             for (const name of newDynamic) {
                 serializer.add(this.toCollabName(name), this.filesContent.get(name)!.content);
@@ -211,6 +211,7 @@ export class FileSystem {
             this.state.dynamicVersion = this.storageProject.version + 1;
         }
         if (staticChanged) {
+            console.log("Static changed");
             const serializer = new FilesSerializer();
             for (const name of newStatic) {
                 serializer.add(this.toCollabName(name), this.filesContent.get(name)!.content);
@@ -227,6 +228,8 @@ export class FileSystem {
             this.storageProject.version++;
             await vscode.workspace.fs.writeFile(this.storageUri("project.json"), new TextEncoder().encode(JSON.stringify(this.storageProject)));
         }
+
+        console.log("End upload");
     }
 
 
@@ -618,6 +621,17 @@ export class FileSystem {
     public stopSync() : void {
         for (const disposable of this.syncDisposables) {
             disposable.dispose();
+        }
+    }
+
+
+    /**
+     * @brief Copy all files from the project folder to a given folder
+     * @param folder The folder to copy files to
+    **/
+    public async copyFiles(folder: vscode.Uri) {
+        for (const file of await recurListFolder(this.projectFolder)) {
+            await vscode.workspace.fs.copy(this.projectUri(file), fileUri(file, folder));
         }
     }
 
