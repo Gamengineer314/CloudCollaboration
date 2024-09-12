@@ -41,6 +41,9 @@ export class LiveShare {
      * @returns Session URL to share with collaborators
     **/
     public async createSession() : Promise<string> {
+        if (this.liveShare.session.id) {
+            throw new Error("Can't create Live Share session : already in a session");
+        }
         await this.liveShare.share();
         if (!this.liveShare.session.id) {
             throw new Error("Failed to create Live Share session");
@@ -54,6 +57,9 @@ export class LiveShare {
      * @param url Session URL
     **/
     public async joinSession(url: string) : Promise<void> {
+        if (this.liveShare.session.id) {
+            throw new Error("Can't create Live Share session : already in a session");
+        }
         await this.liveShare.join(vscode.Uri.parse(url));
     }
 

@@ -22,7 +22,7 @@ export class Project {
     public static get instance() : Project | undefined { return Project._instance; }
 
     private uploading : boolean = false;
-    private mustUpload : boolean = false;
+    private mustUpload : boolean | undefined = undefined;
 
     private constructor(
         private project: DriveProject,
@@ -156,40 +156,46 @@ export class Project {
             if (!LiveShare.instance) {
                 throw new Error("Connection failed : Live Share not initialized");
             }
+            console.log("Connect");
 
             // Get project information from .collablaunch file
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
             const state = await GoogleDrive.instance.getState(project);
             const host = state.url === "";
             const fileSystem = await FileSystem.init(project, state);
+            const instance = new Project(project, host, fileSystem);
 
-            if (host) {
-                // Create instance
-                const instance = new Project(project, host, fileSystem);
-                await fileSystem.download();
-
-                // Create Live Share session
-                state.url = await LiveShare.instance.createSession();
-                await GoogleDrive.instance.setState(project, state);
-
-                // Start synchronization
-                await fileSystem.startSync(true);
-                instance.startUpload();
-
-                // Connected
-                Project._instance = instance;
-                await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
-
-                // Setup workspace
-                await IgnoreStaticDecorationProvider.instance?.update();
-                await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-                await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-                await vscode.commands.executeCommand("workbench.action.terminal.killAll");
+            try {
+                if (host) {
+                    // Connect
+                    await fileSystem.download();
+                    state.url = await LiveShare.instance.createSession();
+                    await GoogleDrive.instance.setState(project, state);
+                    await fileSystem.startSync(true);
+                    setTimeout(() => {
+                        if (Project._instance === instance) {
+                            instance.startUpload();
+                        }
+                    }, 5_000);
+                    Project._instance = instance;
+                    await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+    
+                    // Setup workspace
+                    await IgnoreStaticDecorationProvider.instance?.update();
+                    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+                    await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+                    await vscode.commands.executeCommand("workbench.action.terminal.killAll");
+                }
+                else {
+                    // Save project state and join Live Share session (the extension will restart)
+                    context.globalState.update("projectState", instance);
+                    await LiveShare.instance.joinSession(state.url);
+                }
             }
-            else {
-                // Save project state and join Live Share session (the extension will restart)
-                context.globalState.update("projectState", new Project(project, host, fileSystem));
-                await LiveShare.instance.joinSession(state.url);
+            catch (error: any) {
+                vscode.window.showErrorMessage(error.message);
+                console.error(error);
+                Project._disconnect(instance);
             }
         }));
     }
@@ -208,11 +214,10 @@ export class Project {
             await LiveShare.instance.waitForSession();
             await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "default");
             await waitFor(() => vscode.window.activeTextEditor !== undefined);
+            console.log("Continue connect");
 
-            // Start synchronization
+            // Connect
             await instance.fileSystem.startSync(false);
-            
-            // Connected
             Project._instance = instance;
             await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
 
@@ -240,28 +245,117 @@ export class Project {
             if (!LiveShare.instance) {
                 throw new Error("Disconnection failed : Live Share not initialized");
             }
+            console.log("Disconnect");
 
-            // Leave or end Live Share session
-            const config = await Project.instance.getConfig();
-            if (Project.instance.host) {
-                const state = Project.instance.fileSystem.projectState;
-                state.url = "";
-                await GoogleDrive.instance.setState(Project.instance.project, state);
-                await Project.instance.stopUpload();
-                await LiveShare.instance.exitSession();
-                Project.instance.fileSystem.stopSync();
-                await Project.instance.fileSystem.clear(config.filesConfig, true);
-            }
-            else {
-                Project.instance.fileSystem.stopSync();
-                await LiveShare.instance.exitSession();
-                await Project.instance.fileSystem.clear(config.filesConfig, false);
-            }
-            
+            // Disconnect
+            const instance = Project.instance;
             Project._instance = undefined;
+            if (instance.host) {
+                await instance.stopUpload();
+            }
+            await Project._disconnect(instance);
+        }));
+    }
+
+
+    /**
+     * @brief Disconnect without synchronizing with Google Drive
+     * @param instance Project instance
+    **/
+    private static async _disconnect(instance: Project) : Promise<void> {
+        console.log("_disconnect");
+        try {
+            // Disconnect
+            instance.mustUpload = false;
+            instance.fileSystem.stopSync();
+            if (!instance.host) {
+                await instance.fileSystem.clear(new FilesConfig(), false);
+            }
+            await LiveShare.instance?.exitSession();
+            if (instance.host) {
+                await instance.fileSystem.clear(new FilesConfig(), true);
+            }
+        }
+        finally {
+            // Setup workspace
             await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
             await vscode.commands.executeCommand("workbench.action.terminal.killAll");
-        }));
+        }
+    }
+
+    
+    /**
+     * @brief Start uploading files regularly to Google Drive
+    **/
+    private startUpload() : void {
+        console.log("Start upload");
+        this.mustUpload = true;
+        this.upload();
+    }
+
+    private async upload() : Promise<void> {
+        while (true) {
+            try {
+                // Check if this user is the host
+                if (!GoogleDrive.instance || await GoogleDrive.instance.getStateModifier(this.project) !== await GoogleDrive.instance.getEmail()) {
+                    vscode.window.showErrorMessage("Another user is the host for this project");
+                    console.error(new Error("Another user is the host for this project"));
+                    await Project._disconnect(this);
+                    Project.connect();
+                    return;
+                }
+            }
+            catch (error: any) {
+                vscode.window.showErrorMessage(error.message);
+                console.error(error);
+            }
+
+            // Wait 1 minute
+            await sleep(60_000);
+            await waitFor(() => this.mustUpload !== undefined);
+            if (!this.mustUpload) {
+                break;
+            }
+
+            try {
+                // Upload
+                this.uploading = true;
+                await vscode.commands.executeCommand("workbench.action.files.saveAll");
+                await sleep(1000);
+                await this.fileSystem.upload((await this.getConfig()).filesConfig);
+                this.uploading = false;
+                await waitFor(() => this.mustUpload !== undefined);
+                if (!this.mustUpload) {
+                    break;
+                }
+            }
+            catch (error: any) {
+                this.uploading = false;
+                vscode.window.showErrorMessage(error.message);
+                console.error(error);
+            }
+        }
+    }
+
+    /**
+     * @brief Stop uploading files regularly to Google Drive
+    **/
+    private async stopUpload() : Promise<void> {
+        console.log("Stop upload");
+        this.mustUpload = undefined; // Pause upload
+        if (this.uploading) {
+            await waitFor(() => !this.uploading);
+        }
+        try {
+            await vscode.commands.executeCommand("workbench.action.files.saveAll");
+            await sleep(1000);
+            await this.fileSystem.upload((await this.getConfig()).filesConfig, true);
+        }
+        catch (error: any) {
+            this.mustUpload = true; // Resume upload
+            throw error;
+        }
+        this.mustUpload = false; // Stop upload
     }
 
 
@@ -343,51 +437,13 @@ export class Project {
             if (!GoogleDrive.instance) {
                 throw new Error("Can't create config : not authenticated");
             }
+            console.log("Create config");
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
             config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.instance.getEmail()));
             await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
             vscode.window.showInformationMessage("Project configuration file created");
         }
         return config;
-    }
-
-
-    /**
-     * @brief Start uploading files regularly to Google Drive
-    **/
-    private startUpload() : void {
-        this.mustUpload = true;
-        this.upload();
-    }
-
-    private async upload() : Promise<void> {
-        while (true) {
-            await sleep(60_000);
-            if (!this.mustUpload) {
-                break;
-            }
-            this.uploading = true;
-            await vscode.commands.executeCommand("workbench.action.files.saveAll");
-            await sleep(1000);
-            await this.fileSystem.upload((await this.getConfig()).filesConfig);
-            this.uploading = false;
-            if (!this.mustUpload) {
-                break;
-            }
-        }
-    }
-
-    /**
-     * @brief Stop uploading files regularly to Google Drive
-    **/
-    private async stopUpload() : Promise<void> {
-        this.mustUpload = false;
-        if (this.uploading) {
-            await waitFor(() => !this.uploading);
-        }
-        await vscode.commands.executeCommand("workbench.action.files.saveAll");
-        await sleep(1000);
-        await this.fileSystem.upload((await this.getConfig()).filesConfig);
     }
 
 }

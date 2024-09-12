@@ -26,7 +26,6 @@ export class FileSystem {
         private projectFolder: vscode.Uri
     ) {}
 
-    public get projectState() : ProjectState { return this.state; }
     public get projectPath() : string { return this.projectFolder.fsPath; }
 
     public static copy(fileSystem: FileSystem) : FileSystem {
@@ -77,7 +76,7 @@ export class FileSystem {
 
 
     /**
-     * @brief Download files from Google Drive to the project and current folder
+     * @brief Download files from Google Drive to the project and current folders
     **/
     public async download() : Promise<void> {
         if (!GoogleDrive.instance) {
@@ -150,8 +149,9 @@ export class FileSystem {
     /**
      * @brief Upload files from the project folder to Google Drive
      * @param config Files configuration
+     * @param clearUrl Wether or not to clear the URL in the state (default: false)
     **/
-    public async upload(config: FilesConfig) : Promise<void> {
+    public async upload(config: FilesConfig, clearUrl: boolean = false) : Promise<void> {
         console.log("Upload");
 
         // Check if files were changed
@@ -220,6 +220,14 @@ export class FileSystem {
             await GoogleDrive.instance.setStatic(this.driveProject, staticFiles);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), staticFiles);
             this.state.staticVersion = this.storageProject.version + 1;
+        }
+
+        // Clear URL
+        if (clearUrl) {
+            this.state.url = "";
+            if (!dynamicChanged && !staticChanged) {
+                await GoogleDrive.instance.setState(this.driveProject, this.state);
+            }
         }
 
         // Increment version if files were changed
