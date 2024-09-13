@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import * as vlsl from "vsls";
+import * as vlsl from "vsls/vscode";
 import { waitFor } from "./util";
 
 
@@ -26,7 +26,7 @@ export class LiveShare {
         }
 
         // Get Live Share API if available
-        const liveShare = await vlsl.getApi();
+        const liveShare = await vlsl.getApi("cloud-collaboration");
         if (!liveShare) {
             throw new Error("LiveShare initialization failed : Live Share not available");
         }
@@ -44,7 +44,7 @@ export class LiveShare {
         if (this.liveShare.session.id) {
             throw new Error("Can't create Live Share session : already in a session");
         }
-        await this.liveShare.share();
+        console.log(await this.liveShare.share({ suppressNotification: true }));
         if (!this.liveShare.session.id) {
             throw new Error("Failed to create Live Share session");
         }
