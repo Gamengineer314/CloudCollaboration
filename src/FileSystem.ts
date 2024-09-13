@@ -59,10 +59,11 @@ export class FileSystem {
         }
         catch {
             storageProject = new StorageProject(0, "", "");
-            await vscode.workspace.fs.createDirectory(projectFolder);
         }
         if (storageProject.dynamicID !== project.dynamicID || storageProject.staticID !== project.staticID) {
             storageProject = new StorageProject(0, project.dynamicID, project.staticID);
+            await vscode.workspace.fs.createDirectory(projectFolder);
+            await vscode.workspace.fs.createDirectory(fileUri("Backups", storageFolder));
             await vscode.workspace.fs.writeFile(fileUri("project.json", storageFolder), new TextEncoder().encode(JSON.stringify(storageProject)));
             await vscode.workspace.fs.writeFile(fileUri("project.collabdynamic", storageFolder), new Uint8Array());
             await vscode.workspace.fs.writeFile(fileUri("project.collabstatic", storageFolder), new Uint8Array());
@@ -157,8 +158,10 @@ export class FileSystem {
         // Check if files were changed
         let newDynamic = new Set<string>();
         let dynamicChanged = false;
+        let dynamicFiles: [string, Uint8Array][] = [];
         let newStatic = new Set<string>();
         let staticChanged = false;
+        let staticFiles: [string, Uint8Array][] = [];
         for (const [name, content] of this.filesContent) {
             if (match(name, config.ignoreRules)) { // Ignore ignored files
                 continue;
@@ -166,6 +169,7 @@ export class FileSystem {
 
             if (match(name, config.staticRules)) { // Static file
                 newStatic.add(name);
+                staticFiles.push([name, content.content]);
                 if (!staticChanged) { // Check if file was changed since last upload
                     if (content.modified || !this.previousStatic.has(name)) {
                         staticChanged = true;
@@ -174,6 +178,7 @@ export class FileSystem {
             }
             else { // Dynamic file
                 newDynamic.add(name);
+                dynamicFiles.push([name, content.content]);
                 if (!dynamicChanged) { // Check if file was changed since last upload
                     if (content.modified || !this.previousDynamic.has(name)) {
                         dynamicChanged = true;
@@ -202,23 +207,23 @@ export class FileSystem {
         if (dynamicChanged) {
             console.log("Dynamic changed");
             const serializer = new FilesSerializer();
-            for (const name of newDynamic) {
-                serializer.add(this.toCollabName(name), this.filesContent.get(name)!.content);
+            for (const [name, content] of dynamicFiles) {
+                serializer.add(this.toCollabName(name), content);
             }
-            const dynamicFiles = serializer.serialize();
-            await GoogleDrive.instance.setDynamic(this.driveProject, dynamicFiles);
-            await vscode.workspace.fs.writeFile(this.storageUri("project.collabdynamic"), dynamicFiles);
+            const serializedFiles = serializer.get();
+            await GoogleDrive.instance.setDynamic(this.driveProject, serializedFiles);
+            await vscode.workspace.fs.writeFile(this.storageUri("project.collabdynamic"), serializedFiles);
             this.state.dynamicVersion = this.storageProject.version + 1;
         }
         if (staticChanged) {
             console.log("Static changed");
             const serializer = new FilesSerializer();
-            for (const name of newStatic) {
-                serializer.add(this.toCollabName(name), this.filesContent.get(name)!.content);
+            for (const [name, content] of staticFiles) {
+                serializer.add(this.toCollabName(name), content);
             }
-            const staticFiles = serializer.serialize();
-            await GoogleDrive.instance.setStatic(this.driveProject, staticFiles);
-            await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), staticFiles);
+            const serializedFiles = serializer.get();
+            await GoogleDrive.instance.setStatic(this.driveProject, serializedFiles);
+            await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), serializedFiles);
             this.state.staticVersion = this.storageProject.version + 1;
         }
 
@@ -230,11 +235,26 @@ export class FileSystem {
             }
         }
 
-        // Increment version if files were changed
         if (dynamicChanged || staticChanged) {
+            // Increment version if files were changed
             await GoogleDrive.instance.setState(this.driveProject, this.state);
             this.storageProject.version++;
             await vscode.workspace.fs.writeFile(this.storageUri("project.json"), new TextEncoder().encode(JSON.stringify(this.storageProject)));
+
+            // Backup
+            const backupsUri = this.storageUri("Backups");
+            const backups = (await vscode.workspace.fs.readDirectory(backupsUri)).map(file => file[0]).sort();
+            if (backups.length >= config.maximumBackups) {
+                await vscode.workspace.fs.delete(fileUri(backups[0], backupsUri), { recursive: true });
+            }
+            const backupUri = fileUri("Backup" + this.storageProject.version, backupsUri);
+            await vscode.workspace.fs.createDirectory(backupUri);
+            for (const [name, content] of dynamicFiles) {
+                await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
+            }
+            for (const [name, content] of staticFiles) {
+                await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
+            }
         }
 
         console.log("End upload");
@@ -742,6 +762,7 @@ export class FileSystem {
 export class FilesConfig {
     public staticRules: string[] = [];
     public ignoreRules: string[] = [];
+    public maximumBackups: number = 10;
 }
 
 

@@ -5,7 +5,7 @@ export class FilesSerializer {
 
 
     /**
-     * @brief Add a file to the files to be serialized
+     * @brief Add a file to the serialized files
      * @param name Name of the file
      * @param content Content of the file
     **/
@@ -33,10 +33,9 @@ export class FilesSerializer {
 
 
     /**
-     * @brief Serialize the files that were added
-     * @return Serialized files
+     * @brief Get the serialized files
     **/
-    public serialize() : Uint8Array {
+    public get() : Uint8Array {
         return this.buffer.slice(0, this.length);
     }
 
