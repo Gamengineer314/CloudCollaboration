@@ -435,7 +435,7 @@ export class FileSystem {
                     if (collabName.endsWith(".collab64")) { // Binary file -> decode base64
                         content = fromBase64(new TextDecoder().decode(content));
                     }
-                    console.log(content);
+                    console.log("Content " + content.length);
                     directory = false;
                 }
                 else if (stat.type === vscode.FileType.Directory) {
@@ -547,7 +547,7 @@ export class FileSystem {
                 if (stat.type === vscode.FileType.File) {
                     console.log("File");
                     content = await vscode.workspace.fs.readFile(uri);
-                    console.log(content);
+                    console.log("Content " + content.length);
                     directory = false;
                 }
                 else if (stat.type === vscode.FileType.Directory) {

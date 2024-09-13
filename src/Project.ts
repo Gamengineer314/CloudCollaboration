@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { GoogleDrive, DriveProject, Permission } from "./GoogleDrive";
+import { GoogleDrive, DriveProject, Permission, ProjectState } from "./GoogleDrive";
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { collaborationFolder, context, currentFolder } from "./extension";
@@ -20,6 +20,8 @@ export class Project {
 
     private static _instance : Project | undefined = undefined;
     public static get instance() : Project | undefined { return Project._instance; }
+    private static _connecting : boolean = false;
+    public static get connecting() : boolean { return Project._connecting; }
 
     private uploading : boolean = false;
     private mustUpload : boolean | undefined = undefined;
@@ -27,6 +29,7 @@ export class Project {
     private constructor(
         private project: DriveProject,
         private host: boolean,
+        private state: ProjectState,
         private fileSystem: FileSystem
     ) {}
 
@@ -41,22 +44,48 @@ export class Project {
         // Restore project state after a restart for joining a Live Share session
         const project = context.globalState.get<Project>("projectState");
         const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
-        if (project) { // Connected to a project
-            // Activate previous folder
-            if (previousFolder) {
+        console.log(JSON.stringify(previousFolder));
+        if (project && previousFolder) { // Connected to a project
+            const instance = new Project(project.project, project.host, project.state, FileSystem.copy(project.fileSystem));
+            if (!previousFolder.active) { // Continue connecting
                 previousFolder.active = true;
                 context.globalState.update("previousFolder", previousFolder);
+                console.log(instance);
+                vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
+                    () => Project.guestConnect(instance)
+                ));
             }
-
-            // Continue connecting
-            context.globalState.update("projectState", undefined);
-            Project.continueConnect(new Project(project.project, project.host, FileSystem.copy(project.fileSystem)));
+            else {
+                if (!previousFolder.connected) { // Error -> connect as host
+                    if (currentFolder && previousFolder.path === currentFolder.path) {
+                        context.globalState.update("projectState", undefined);
+                        previousFolder.connected = true;
+                        context.globalState.update("previousFolder", previousFolder);
+                        instance.host = true;
+                        vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
+                            () => Project.hostConnect(instance)
+                        ));
+                    }
+                    else {
+                        console.log("Connection error");
+                        vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
+                    }
+                }
+                else {
+                    vscode.window.showErrorMessage("Error : invalid state");
+                    context.globalState.update("projectState", undefined);
+                    context.globalState.update("previousFolder", undefined);
+                }
+            }
         }
         else { // Come back to previous folder if activated
             if (previousFolder && previousFolder.active) {
-                await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
+                context.globalState.update("previousFolder", undefined);
+                vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
             }
-            context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path, false));
+            else if (currentFolder) {
+                context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path, false, false, false));
+            }
         }
     }
 
@@ -144,89 +173,126 @@ export class Project {
                 throw new Error("Connection failed : not authenticated");
             }
         }
-        
+
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(async () => {
-            // Check instances
+            // Checks
             if (!GoogleDrive.instance) {
                 throw new Error("Connection failed : not authenticated");
-            }
-            if (Project.instance) {
-                throw new Error("Connection failed : already connected");
             }
             if (!LiveShare.instance) {
                 throw new Error("Connection failed : Live Share not initialized");
             }
+            if (Project.connecting) {
+                throw new Error("Connection failed : already connecting");
+            }
+            Project._connecting = true;
             console.log("Connect");
 
-            // Get project information from .collablaunch file
-            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
-            const state = await GoogleDrive.instance.getState(project);
-            const host = state.url === "";
-            const fileSystem = await FileSystem.init(project, state);
-            const instance = new Project(project, host, fileSystem);
-
             try {
-                if (host) {
-                    // Connect
-                    await fileSystem.download();
-                    state.url = await LiveShare.instance.createSession();
-                    await GoogleDrive.instance.setState(project, state);
-                    await fileSystem.startSync(true);
-                    setTimeout(() => {
-                        if (Project._instance === instance) {
-                            instance.startUpload();
-                        }
-                    }, 5_000);
-                    Project._instance = instance;
-                    await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
-    
-                    // Setup workspace
-                    await IgnoreStaticDecorationProvider.instance?.update();
-                    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-                    await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-                    await vscode.commands.executeCommand("workbench.action.terminal.killAll");
+                // Get project information from .collablaunch file
+                const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
+                const state = await GoogleDrive.instance.getState(project);
+                const host = state.url === "";
+                const fileSystem = await FileSystem.init(project, state);
+                const instance = new Project(project, host, state, fileSystem);
+
+                try {
+                    if (host) {
+                        // Connect
+                        await Project.hostConnect(instance);
+                    }
+                    else {
+                        // Save project state and join Live Share session (the extension will restart)
+                        context.globalState.update("projectState", instance);
+                        await LiveShare.instance.joinSession(state.url);
+                    }
                 }
-                else {
-                    // Save project state and join Live Share session (the extension will restart)
-                    context.globalState.update("projectState", instance);
-                    await LiveShare.instance.joinSession(state.url);
+                catch (error: any) {
+                    vscode.window.showErrorMessage(error.message);
+                    console.error(error);
+                    Project._disconnect(instance);
                 }
             }
-            catch (error: any) {
-                vscode.window.showErrorMessage(error.message);
-                console.error(error);
-                Project._disconnect(instance);
+            finally {
+                Project._connecting = false;
             }
         }));
     }
 
 
     /**
-     * @brief Continue connecting to the project after the extension restarted
+     * @brief Connect to a project as a host
      * @param instance Project instance
     **/
-    public static async continueConnect(instance: Project) : Promise<void> {
-        await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(async () => {
-            // Wait until the Live Share session is ready
-            if (!LiveShare.instance) {
-                throw new Error("Can't connect to project : Live Share not initialized");
+    public static async hostConnect(instance: Project) : Promise<void> {
+        // Check instances
+        if (!GoogleDrive.instance) {
+            throw new Error("Connection failed : not authenticated");
+        }
+        if (!LiveShare.instance) {
+            throw new Error("Connection failed : Live Share not initialized");
+        }
+        if (Project.instance) {
+            throw new Error("Connection failed : already connected");
+        }
+        console.log("Host connect");
+
+        // Connect
+        await instance.fileSystem.download();
+        instance.state.url = await LiveShare.instance.createSession();
+        await GoogleDrive.instance.setState(instance.project, instance.state);
+        await instance.fileSystem.startSync(true);
+        setTimeout(() => {
+            if (Project.instance === instance) {
+                instance.startUpload();
             }
-            await LiveShare.instance.waitForSession();
-            await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "default");
-            await waitFor(() => vscode.window.activeTextEditor !== undefined);
-            console.log("Continue connect");
+        }, 5_000);
+        Project._instance = instance;
+        await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
 
-            // Connect
-            await instance.fileSystem.startSync(false);
-            Project._instance = instance;
-            await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+        // Setup workspace
+        await IgnoreStaticDecorationProvider.instance?.update();
+        await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+        await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+        await vscode.commands.executeCommand("workbench.action.terminal.killAll");
+    }
 
-            // Setup workspace
-            await IgnoreStaticDecorationProvider.instance?.update();
-            await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-            await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-            await vscode.commands.executeCommand("workbench.action.terminal.killAll");
-        }));
+
+    /**
+     * @brief Connect to a project as a guest
+     * @param instance Project instance
+    **/
+    public static async guestConnect(instance: Project) : Promise<void> {
+        // Check instances
+        if (!LiveShare.instance) {
+            throw new Error("Can't connect to project : Live Share not initialized");
+        }
+        if (Project.instance) {
+            throw new Error("Connection failed : already connected");
+        }
+        console.log("Guest connect");
+
+        // Wait until the Live Share session is ready
+        await LiveShare.instance.waitForSession();
+        await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "default");
+        await waitFor(() => vscode.window.activeTextEditor !== undefined);
+
+        // Connect
+        await instance.fileSystem.startSync(false);
+        Project._instance = instance;
+        context.globalState.update("projectState", undefined);
+        const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
+        if (previousFolder) {
+            previousFolder.connected = true;
+            context.globalState.update("previousFolder", previousFolder);
+        }
+        await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+
+        // Setup workspace
+        await IgnoreStaticDecorationProvider.instance?.update();
+        await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+        await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+        await vscode.commands.executeCommand("workbench.action.terminal.killAll");
     }
 
 
@@ -474,6 +540,8 @@ export class ShareConfig {
 class PreviousFolder {
     public constructor(
         public path: string,
-        public active: boolean
+        public active: boolean,
+        public connected: boolean,
+        public disconnected: boolean
     ) {}
 }
