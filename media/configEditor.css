@@ -97,26 +97,58 @@ textarea {
     margin-left: 12px;
     visibility: visible;
 }
-
 #ignored_save_div {
     margin-top: 10px;
     margin-left: 30px;
 }
-
 #static_save {
     display: none;
 }
-
 #static_saved {
     color: #0078d4;
     vertical-align: 0px;
     margin-left: 12px;
     visibility: visible;
 }
-
 #static_save_div {
     margin-top: 10px;
     margin-left: 30px;
+}
+
+#backup {
+    margin-left: 30px;
+    margin-top: 20px;
+}
+#backup_frequency {
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+    margin-right: 10px;
+}
+#backup_amount {
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+    margin-right: 10px;
+}
+#backup_path {
+    margin-left: 30px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+#copy_backup_button {
+    vertical-align: top;
+    display: inline;
+}
+#copy_backup_button:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+#backup_path_text {
+    color: #0078d4;
+}
+#backup_path_location {
+    margin-right: 5px;
+    vertical-align: top;
 }
 
 

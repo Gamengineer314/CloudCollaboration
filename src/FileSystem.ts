@@ -27,6 +27,7 @@ export class FileSystem {
     ) {}
 
     public get projectPath() : string { return this.projectFolder.fsPath; }
+    public get backupPath() : string { return this.storageUri("Backups").fsPath; }
 
     public static copy(fileSystem: FileSystem) : FileSystem {
         return new FileSystem(
@@ -756,7 +757,8 @@ export class FileSystem {
 export class FilesConfig {
     public staticRules: string[] = [];
     public ignoreRules: string[] = [];
-    public maximumBackups: number = 10;
+    public backupFrequency: number = 5;
+    public maximumBackups: number = 5;
 }
 
 

@@ -12,7 +12,7 @@ export class BinaryFileEditorProvider implements CustomTextEditorProvider {
 
         // Get the binary file path
         const fileUri = document.uri.with({ path: document.uri.path.replace(".collab64", '') });
-        const collaborationFileName = collaborationName(fileUri);
+        const collaborationFileName = collaborationName(document.uri);
         if (collaborationFileName === "") {
             // Show error message, close the editor and return
             vscode.window.showErrorMessage("This file is not in the Cloud Collaboration folder");

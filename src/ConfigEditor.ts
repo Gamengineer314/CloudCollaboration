@@ -10,6 +10,13 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Called when our custom editor is opened.
     public async resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, _token: vscode.CancellationToken) : Promise<void> {
+        // If the project is not connected, exit editor and throw an error
+        if (!Project.instance) {
+            vscode.window.showErrorMessage("The project is not connected");
+            await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+            return;
+        }
+
         // Get the json from the opened .collabconfig file
         let project = JSON.parse(document.getText()) as Config;
 
@@ -31,15 +38,19 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
             if (!GoogleDrive.instance) {
                 throw(new Error("Config Editor load failed : not authenticated"));
             }
+            if (!Project.instance) {
+                throw(new Error("Config Editor load failed : not connected"));
+            }
 
             webviewPanel.webview.postMessage({ 
                 type: 'update',
-                config: project.shareConfig,
+                config: project,
                 email: await GoogleDrive.instance.getEmail(),
                 uris: {
                     crown: crown.toString(),
                     trash: trash.toString()
-                }
+                },
+                backupPath: Project.instance.backupPath
             });
         }
 
@@ -119,6 +130,30 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     await this.saveStatic(e.value, project, document);
                     // Update file decorations
                     await IgnoreStaticDecorationProvider.instance?.update();
+
+                    return;
+                
+                case 'backup_amount':
+                    project.filesConfig.maximumBackups = e.value;
+                    const edit = new vscode.WorkspaceEdit();
+                    edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(project, null, 4));
+                    vscode.workspace.applyEdit(edit);
+                    await vscode.workspace.save(document.uri);
+
+                    return;
+                
+                case 'backup_frequency':
+                    project.filesConfig.backupFrequency = e.value;
+                    const edit2 = new vscode.WorkspaceEdit();
+                    edit2.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(project, null, 4));
+                    vscode.workspace.applyEdit(edit2);
+                    await vscode.workspace.save(document.uri);
+
+                    return;
+                
+                case 'copy_backup_path':
+                    await vscode.env.clipboard.writeText(e.value);
+                    vscode.window.showInformationMessage("Path copied to clipboard");
 
                     return;
 			}
@@ -201,7 +236,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <span id="if_help_text" class="help_text">Ignored files are not uploaded to Google Drive and are therefore not synchronized with your team. This can be used to improve upload/download performance. You can for example ignore temporary or compilation output files, or large files that rarely change if you share them by other means with your team.<br/>List of rules determining which files are ignored. A rule is a path that may contain special characters :<br/>- ? = any character<br/>- [abc] = a, b or c<br/>- * = any sequence of characters except '/'<br/>- ** = any sequence of characters<br/>- If a rule starts with '!', it excludes files instead of including them.</span>
                 </div>
 
-                <div><textarea id="ignored_input" type="text" placeholder="Ignored file rules"></textarea></div>
+                <div><textarea id="ignored_input" type="text" placeholder="Ignored files rules"></textarea></div>
                 <div id="ignored_save_div">
                     <button id="ignored_save" class="add_button">Save</button>
                     <span id="ignored_saved">Saved</span>
@@ -217,11 +252,41 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <span id="sf_help_text" class="help_text">Static files are uploaded/downloaded separately from the rest of the files. If a static file is modified, all static files need to be uploaded/downloaded. If a non-static file is modified, all non-static files need to be uploaded/downloaded. You should set files that rarely change as static to improve upload/download performance.<br/>List of rules determining which files are static. A rule is a path that may contain special characters :<br/>- ? = any character<br/>- [abc] = a, b or c<br/>- * = any sequence of characters except '/'<br/>- ** = any sequence of characters<br/>- If a rule starts with '!', it excludes files instead of including them.</span>
                 </div>
 
-                <div><textarea id="static_input" type="text" placeholder="Static file rules"></textarea></div>
+                <div><textarea id="static_input" type="text" placeholder="Static files rules"></textarea></div>
                 <div id="static_save_div">
                     <button id="static_save" class="add_button">Save</button>
                     <span id="static_saved">Saved</span>
                 </div>
+
+
+
+                <h2 class="help_h">Backup :</h2>
+                <div class="help_div">
+                    <img id="b_help_icon" class="help_icon" src="${helpIcon}" />
+                </div>
+                <div class="help_div">
+                    <span id="b_help_text" class="help_text">In case anything goes wrong, your project files are backed up regularly. When a new backup is added, the oldest one is deleted. You can choose how many backups are maintained and how frequently backups are added. ( Files are backed up on the machine of the current host of the Live Share session )</span>
+                </div>
+
+                <div id="backup">
+                    <span> Backup every</span>
+                    <input id="backup_frequency" type="text">
+                    <span> minutes</span>
+                </div>
+
+                <div id="backup">
+                    <span> Keep</span>
+                    <input id="backup_amount" type="text">
+                    <span> backups</span>
+                </div>
+
+                <div id="backup_path">
+                    <span id="backup_path_location"> Backups location :</span>
+                    <img id="copy_backup_button" class="icon" src="${copyIcon}" />
+                    <span id="backup_path_text"></span>
+                </div>
+
+                
                 
                 
                 

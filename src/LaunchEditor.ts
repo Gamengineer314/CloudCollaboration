@@ -25,7 +25,7 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
         webviewPanel.webview.options = {
             enableScripts: true,
         };
-        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined);
+        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined, Project.connecting);
 
         // Receive message from the webview.
         webviewPanel.webview.onDidReceiveMessage(async e => {
@@ -43,7 +43,7 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
                 case 'disconnect':
                     await Project.disconnect();
                     // Update the webview
-                    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined);
+                    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined, Project.connecting);
                     return;
             }
         });
@@ -58,7 +58,7 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
      * @param connected True if vscode is already connected to the project
      * @returns The html as a string
     **/
-    private getHtmlForWebview(webview: vscode.Webview, name: string, inSubFolder: boolean, connected: boolean) : string {
+    private getHtmlForWebview(webview: vscode.Webview, name: string, inSubFolder: boolean, connected: boolean, connecting: boolean) : string {
         // Create the html button depending on inSubFolder
         let button;
         if (connected) {
@@ -121,16 +121,23 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
                         vscode.postMessage({ type: 'openFolder' });
                     }
 
-                    if (${connected}) {
-                        document.getElementById('disconnect').addEventListener('click', disconnect);
+                    if (${connecting}) {
+                        document.body.innerHTML = '<h1>${name}</h1>\\n<h2>Connecting...</h2>';
                     }
                     else {
-                        if (${inSubFolder}) {
-                            document.getElementById('openfolder').addEventListener('click', openFolder);
-                        } else {
-                            document.getElementById('connect').addEventListener('click', connect);
+                        if (${connected}) {
+                            document.getElementById('disconnect').addEventListener('click', disconnect);
+                        }
+                        else {
+                            if (${inSubFolder}) {
+                                document.getElementById('openfolder').addEventListener('click', openFolder);
+                            } else {
+                                document.getElementById('connect').addEventListener('click', connect);
+                            }
                         }
                     }
+
+                    
                 </script>
             </body>
         `;

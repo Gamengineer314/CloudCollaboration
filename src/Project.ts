@@ -40,6 +40,7 @@ export class Project {
 
     public get driveProject() : DriveProject { return this.project; }
     public get projectPath() : string { return this.fileSystem.projectPath; }
+    public get backupPath() : string { return this.fileSystem.backupPath; }
 
 
     /**

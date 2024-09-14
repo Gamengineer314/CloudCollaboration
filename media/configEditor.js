@@ -1,7 +1,7 @@
 const vscode = acquireVsCodeApi();
 
 
-function updateMembers(owner, members, invites, public, publicMembers, isOwner, uris) {
+function updateMembers(owner, members, invites, public, publicMembers, isOwner, uris, backup_frequency, backup_amount, backupPath) {
     // Get the members div
     const membersDiv = document.getElementById('members');
 
@@ -129,7 +129,15 @@ function updateMembers(owner, members, invites, public, publicMembers, isOwner, 
         globalSharingLink.innerText = '';
     }
 
-    // Load the inputs from the storage
+    // Backups
+    console.log(backup_frequency);
+    backupFrequency.value = backup_frequency.toString();
+    backupAmount.value = backup_amount.toString();
+
+    backupPathText.innerText = backupPath;
+
+
+    // Load the rules inputs from the storage
     const state = vscode.getState();
     if (state) {
         ignoredInput.value = state.ignored;
@@ -170,7 +178,7 @@ window.addEventListener('message', event => {
     const message = event.data;
     switch (message.type) {
         case 'update':
-            updateMembers(message.config.owner, message.config.members, message.config.invites, message.config.public, message.config.publicMembers, message.config.owner === message.email, message.uris);
+            updateMembers(message.config.shareConfig.owner, message.config.shareConfig.members, message.config.shareConfig.invites, message.config.shareConfig.public, message.config.shareConfig.publicMembers, message.config.shareConfig.owner === message.email, message.uris, message.config.filesConfig.backupFrequency, message.config.filesConfig.maximumBackups, message.backupPath);
             return;
         case 'load_inputs':
             loadInputs(message.ignored, message.static);
@@ -249,6 +257,8 @@ const ifHelpIcon = document.getElementById('if_help_icon');
 const ifHelpText = document.getElementById('if_help_text');
 const sfHelpIcon = document.getElementById('sf_help_icon');
 const sfHelpText = document.getElementById('sf_help_text');
+const bHelpIcon = document.getElementById('b_help_icon');
+const bHelpText = document.getElementById('b_help_text');
 
 gsHelpIcon.addEventListener('mouseenter', () => {
     gsHelpText.style.display = 'inline-flex';
@@ -267,6 +277,12 @@ sfHelpIcon.addEventListener('mouseenter', () => {
 });
 sfHelpIcon.addEventListener('mouseleave', () => {
     sfHelpText.style.display = 'none';
+});
+bHelpIcon.addEventListener('mouseenter', () => {
+    bHelpText.style.display = 'inline-flex';
+});
+bHelpIcon.addEventListener('mouseleave', () => {
+    bHelpText.style.display = 'none';
 });
 
 
@@ -347,6 +363,38 @@ staticInput.addEventListener('input', () => {
 });
 
 
+// Backups
+const backupFrequency = document.getElementById('backup_frequency');
+const backupAmount = document.getElementById('backup_amount');
+
+// Everytime the value changes, send a message to the extension if it is a valid number
+backupAmount.addEventListener('input', () => {
+    const value = parseInt(backupAmount.value);
+    if (value) {
+        vscode.postMessage({
+            type: 'backup_amount',
+            value: value
+        });
+    }
+});
+backupFrequency.addEventListener('input', () => {
+    const value = parseInt(backupFrequency.value);
+    if (value) {
+        vscode.postMessage({
+            type: 'backup_frequency',
+            value: value
+        });
+    }
+});
+
+const backupPathText = document.getElementById('backup_path_text');
+const backupPathCopy = document.getElementById('copy_backup_button');
+backupPathCopy.addEventListener('click', () => {
+    vscode.postMessage({
+        type: 'copy_backup_path',
+        value: backupPathText.innerText
+    });
+});
 
 
 // Send a message to the extension to send an update, when the page is loaded

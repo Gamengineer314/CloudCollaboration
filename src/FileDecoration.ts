@@ -72,6 +72,10 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
         return undefined;
     }
 
+
+    /**
+     * @brief Update the decorations of all files
+    **/
     public async update() {
         // Get the config from the getConfig function
         if (!Project.instance) {
