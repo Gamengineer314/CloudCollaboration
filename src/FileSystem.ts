@@ -80,16 +80,13 @@ export class FileSystem {
      * @brief Download files from Google Drive to the project and current folders
     **/
     public async download() : Promise<void> {
-        if (!GoogleDrive.instance) {
-            throw new Error("Download failed : not authenticated");
-        }
         console.log("Download");
 
         // Download dynamic files if they were changed
         let dynamicFiles;
         if (this.state.dynamicVersion > this.storageProject.version) {
             console.log("Dynamic changed");
-            dynamicFiles = await GoogleDrive.instance.getDynamic(this.driveProject);
+            dynamicFiles = await GoogleDrive.instance!.getDynamic(this.driveProject);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabdynamic"), dynamicFiles);
         }
         else {
@@ -100,7 +97,7 @@ export class FileSystem {
         let staticFiles;
         if (this.state.staticVersion > this.storageProject.version) {
             console.log("Static changed");
-            staticFiles = await GoogleDrive.instance.getStatic(this.driveProject);
+            staticFiles = await GoogleDrive.instance!.getStatic(this.driveProject);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), staticFiles);
         }
         else {
@@ -201,9 +198,6 @@ export class FileSystem {
         this.previousStatic = newStatic;
 
         // Upload files if they were changed
-        if (!GoogleDrive.instance) {
-            throw new Error("Upload failed : not authenticated");
-        }
         if (dynamicChanged) {
             console.log("Dynamic changed");
             const serializer = new FilesSerializer();
@@ -211,7 +205,7 @@ export class FileSystem {
                 serializer.add(this.toCollabName(name), content);
             }
             const serializedFiles = serializer.get();
-            await GoogleDrive.instance.setDynamic(this.driveProject, serializedFiles);
+            await GoogleDrive.instance!.setDynamic(this.driveProject, serializedFiles);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabdynamic"), serializedFiles);
             this.state.dynamicVersion = this.storageProject.version + 1;
         }
@@ -222,7 +216,7 @@ export class FileSystem {
                 serializer.add(this.toCollabName(name), content);
             }
             const serializedFiles = serializer.get();
-            await GoogleDrive.instance.setStatic(this.driveProject, serializedFiles);
+            await GoogleDrive.instance!.setStatic(this.driveProject, serializedFiles);
             await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), serializedFiles);
             this.state.staticVersion = this.storageProject.version + 1;
         }
@@ -231,13 +225,13 @@ export class FileSystem {
         if (clearUrl) {
             this.state.url = "";
             if (!dynamicChanged && !staticChanged) {
-                await GoogleDrive.instance.setState(this.driveProject, this.state);
+                await GoogleDrive.instance!.setState(this.driveProject, this.state);
             }
         }
 
         if (dynamicChanged || staticChanged) {
             // Increment version if files were changed
-            await GoogleDrive.instance.setState(this.driveProject, this.state);
+            await GoogleDrive.instance!.setState(this.driveProject, this.state);
             this.storageProject.version++;
             await vscode.workspace.fs.writeFile(this.storageUri("project.json"), new TextEncoder().encode(JSON.stringify(this.storageProject)));
 
