@@ -8,8 +8,8 @@ export class LiveShare {
     private static _instance : LiveShare | undefined = undefined;
     public static get instance() : LiveShare | undefined { return LiveShare._instance; }
 
-
     private liveShare : vlsl.LiveShare;
+    public get sessionId() : string | null { return this.liveShare.session.id; };
 
     private constructor(liveShare: vlsl.LiveShare) {
         this.liveShare = liveShare;
@@ -77,6 +77,25 @@ export class LiveShare {
     **/
     public async waitForSession() : Promise<void> {
         await waitFor(() => this.liveShare.session.id !== null);
+    }
+
+
+    /**
+     * @brief Get a session id from its url
+     * @param url Url of the session
+     * @returns Id of the session
+    **/
+    public static getId(url: string) : string {
+        return url.substring(55);
+    }
+
+    /**
+     * @brief Get a session url from its id
+     * @param id Id of the session
+     * @returns Url of the session
+    **/
+    public static getUrl(id: string) : string {
+        return "https://prod.liveshare.vsengsaas.visualstudio.com/join?" + id;
     }
 
 }

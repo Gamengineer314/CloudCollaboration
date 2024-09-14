@@ -375,7 +375,7 @@ export class Project {
         while (true) {
             try {
                 // Check if this user is the host
-                if (await GoogleDrive.instance!.getStateModifier(this.project) !== await GoogleDrive.instance!.getEmail()) {
+                if (LiveShare.getId((await GoogleDrive.instance!.getState(this.project)).url) !== LiveShare.instance!.sessionId) {
                     vscode.window.showErrorMessage("Another user is the host for this project");
                     console.error(new Error("Another user is the host for this project"));
                     await Project._disconnect(this);

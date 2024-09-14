@@ -502,19 +502,6 @@ export class GoogleDrive {
         await this.drive.permissions.delete({ fileId: project.folderID, permissionId: permission.id });
     }
 
-
-    /**
-     * @brief Get the email address of the user that last modified the state of a project
-     * @param project The project
-    **/
-    public async getStateModifier(project: DriveProject) {
-        const user = await this.drive.files.get({ fileId: project.stateID, fields: "lastModifyingUser" });
-        if (!user.data.lastModifyingUser || !user.data.lastModifyingUser.emailAddress) {
-            throw new Error("Failed to get last modifying user");
-        }
-        return user.data.lastModifyingUser.emailAddress;
-    }
-    
 }
 
 
