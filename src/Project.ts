@@ -179,7 +179,7 @@ export class Project {
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(async () => {
             // Check if not connected
             if (Project.instance || Project.connecting) {
-                throw new Error("Connection failed : already connecting");
+                throw new Error("Connection failed : already connected");
             }
             Project._connecting = true;
             console.log("Connect");
@@ -223,7 +223,7 @@ export class Project {
     private static async hostConnect(instance: Project) : Promise<void> {
         // Check if not connected
         if (Project.instance || Project.connecting) {
-            throw new Error("Connection failed : already connecting");
+            throw new Error("Connection failed : already connected");
         }
         Project._connecting = true;
         console.log("Host connect");
@@ -271,7 +271,7 @@ export class Project {
     private static async guestConnect(instance: Project) : Promise<void> {
         // Check if not connected
         if (Project.instance || Project.connecting) {
-            throw new Error("Connection failed : already connecting");
+            throw new Error("Connection failed : already connected");
         }
         Project._connecting = true;
         console.log("Guest connect");
@@ -327,8 +327,8 @@ export class Project {
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Disconnecting from project..." }, showErrorWrap(async () => {
             console.log("Disconnect");
             const instance = Project.instance!;
-            Project._instance = undefined;
             if (instance.host) {
+                Project._instance = undefined;
                 await instance.stopUpload();
             }
             await Project._disconnect(instance);
@@ -342,6 +342,7 @@ export class Project {
     **/
     private static async _disconnect(instance: Project) : Promise<void> {
         console.log("_disconnect");
+        Project._instance = undefined;
         try {
             // Disconnect
             instance.mustUpload = false;
@@ -375,7 +376,7 @@ export class Project {
         while (true) {
             try {
                 // Check if this user is the host
-                if (await GoogleDrive.instance!.getStateModifier(this.project) !== await GoogleDrive.instance!.getEmail()) {
+                if (LiveShare.getId((await GoogleDrive.instance!.getState(this.project)).url) !== LiveShare.instance!.sessionId) {
                     vscode.window.showErrorMessage("Another user is the host for this project");
                     console.error(new Error("Another user is the host for this project"));
                     await Project._disconnect(this);
