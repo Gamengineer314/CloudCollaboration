@@ -7,13 +7,18 @@ import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, s
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 
 
-const defaultSettings = `{
+const hostDefaultSettings = `{
     "liveshare.autoShareTerminals": false,
     "files.saveConflictResolution": "overwriteFileOnDisk",
     "terminal.integrated.defaultProfile.linux": "Cloud Collaboration",
     "terminal.integrated.defaultProfile.windows": "Cloud Collaboration",
     "terminal.integrated.defaultProfile.osx": "Cloud Collaboration"
 }`;
+const guestDefaultSettings = {
+    "terminal.integrated.defaultProfile.linux": "Cloud Collaboration",
+    "terminal.integrated.defaultProfile.windows": "Cloud Collaboration",
+    "terminal.integrated.defaultProfile.osx": "Cloud Collaboration"
+};
 
 
 export class Project {
@@ -50,7 +55,6 @@ export class Project {
             if (!previousFolder.active) { // Continue connecting
                 previousFolder.active = true;
                 context.globalState.update("previousFolder", previousFolder);
-                console.log(instance);
                 vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
                     () => Project.guestConnect(instance)
                 ));
@@ -126,7 +130,7 @@ export class Project {
             await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
             await vscode.workspace.fs.createDirectory(collaborationFolder);
             await vscode.workspace.fs.createDirectory(currentUri(".vscode"));
-            await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(defaultSettings));
+            await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(hostDefaultSettings));
             vscode.window.showInformationMessage("Project created successfully");
         }));
     }
@@ -156,7 +160,7 @@ export class Project {
             await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
             await vscode.workspace.fs.createDirectory(collaborationFolder);
             await vscode.workspace.fs.createDirectory(currentUri(".vscode"));
-            await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(defaultSettings));
+            await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(hostDefaultSettings));
             vscode.window.showInformationMessage("Project joined successfully");
         });
     }
@@ -250,7 +254,7 @@ export class Project {
         Project._instance = instance;
         await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
 
-        // Setup workspace
+        // Setup editor
         await IgnoreStaticDecorationProvider.instance?.update();
         await vscode.commands.executeCommand("workbench.action.closeAllEditors");
         await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
@@ -288,7 +292,12 @@ export class Project {
         }
         await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
 
-        // Setup workspace
+        // Default settings
+        for (const [key, value] of Object.entries(guestDefaultSettings)) {
+            await vscode.workspace.getConfiguration().update(key, value, vscode.ConfigurationTarget.Workspace);
+        }
+
+        // Setup editor
         await IgnoreStaticDecorationProvider.instance?.update();
         await vscode.commands.executeCommand("workbench.action.closeAllEditors");
         await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
@@ -343,7 +352,7 @@ export class Project {
             }
         }
         finally {
-            // Setup workspace
+            // Setup editor
             await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
             await vscode.commands.executeCommand("workbench.action.terminal.killAll");
         }
