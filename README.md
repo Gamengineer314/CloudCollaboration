@@ -15,6 +15,8 @@ When connecting to a project, the extension automatically joins another particip
 - Open a terminal : press _Terminal_ -> _New Terminal_. This will open a new terminal in a folder containing a copy of the project updated in real time. Each participant can create their own terminal to interact with the project.
 - Disconnect : open the _.collablaunch_ file and click on _Disconnect_. This will exit the Live Share session, transfer it to another participant if you were the host, and unload the project.
 
+![Example](media/CloudCollaboration.gif)
+
 ## Limitations
 Because it depends on Live Share and Google Drive, Cloud Collaboration has some limitations : 
 - Binary files : Live Share does not support binary files. Cloud Collaboration offers a limited support by encoding them as text files. These files will have a _.collab64_ extension. The unencoded version of the files are stored in a folder containing a copy of the project. By default, terminals you create when you are connected to a project open in this folder, so you can interact with both binary and text files from the terminal. This also means that you can't upload binary files by dragging them into the file explorer. To add binary files to a project, right-click in the file explorer and click on _Cloud Collaboration: Upload Files_.
