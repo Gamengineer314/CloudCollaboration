@@ -56,7 +56,7 @@ export class Project {
                 previousFolder.active = true;
                 context.globalState.update("previousFolder", previousFolder);
                 vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
-                    () => Project.guestConnect(instance)
+                    async () => await Project.guestConnect(instance)
                 ));
             }
             else {
@@ -67,7 +67,7 @@ export class Project {
                         context.globalState.update("previousFolder", previousFolder);
                         instance.host = true;
                         vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
-                            () => Project.hostConnect(instance)
+                            async () => await Project.hostConnect(instance)
                         ));
                     }
                     else {
@@ -75,8 +75,9 @@ export class Project {
                         vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
                     }
                 }
-                else {
-                    vscode.window.showErrorMessage("Error : invalid state");
+                else { // Invalid state
+                    vscode.window.showErrorMessage("Project activation failed : invalid state");
+                    console.error(new Error("Project activation failed : invalid state"));
                     context.globalState.update("projectState", undefined);
                     context.globalState.update("previousFolder", undefined);
                 }
@@ -203,7 +204,7 @@ export class Project {
                 try {
                     if (host) {
                         // Connect
-                        await Project.hostConnect(instance);
+                        await Project._hostConnect(instance);
                     }
                     else {
                         // Save project state and join Live Share session (the extension will restart)
@@ -228,7 +229,29 @@ export class Project {
      * @brief Connect to a project as a host
      * @param instance Project instance
     **/
-    public static async hostConnect(instance: Project) : Promise<void> {
+    private static async hostConnect(instance: Project) : Promise<void> {
+        // Check if not connecting
+        if (Project.connecting) {
+            throw new Error("Connection failed : already connecting");
+        }
+        Project._connecting = true;
+        console.log("Host connect");
+
+        // Connect
+        try {
+            await Project._hostConnect(instance);
+        }
+        catch (error: any) {
+            vscode.window.showErrorMessage(error.message);
+            console.error(error);
+            Project._disconnect(instance);
+        }
+        finally {
+            Project._connecting = false;
+        }
+    }
+
+    private static async _hostConnect(instance: Project) : Promise<void> {
         // Check instances
         if (!GoogleDrive.instance) {
             throw new Error("Connection failed : not authenticated");
@@ -239,7 +262,6 @@ export class Project {
         if (Project.instance) {
             throw new Error("Connection failed : already connected");
         }
-        console.log("Host connect");
 
         // Connect
         await instance.fileSystem.download();
@@ -266,7 +288,29 @@ export class Project {
      * @brief Connect to a project as a guest
      * @param instance Project instance
     **/
-    public static async guestConnect(instance: Project) : Promise<void> {
+    private static async guestConnect(instance: Project) : Promise<void> {
+        // Check if not connecting
+        if (Project.connecting) {
+            throw new Error("Connection failed : already connecting");
+        }
+        Project._connecting = true;
+        console.log("Guest connect");
+
+        // Connect
+        try {
+            await Project._guestConnect(instance);
+        }
+        catch (error: any) {
+            vscode.window.showErrorMessage(error.message);
+            console.error(error);
+            Project._disconnect(instance);
+        }
+        finally {
+            Project._connecting = false;
+        }
+    }
+
+    private static async _guestConnect(instance: Project) : Promise<void> {
         // Check instances
         if (!LiveShare.instance) {
             throw new Error("Can't connect to project : Live Share not initialized");
@@ -274,7 +318,6 @@ export class Project {
         if (Project.instance) {
             throw new Error("Connection failed : already connected");
         }
-        console.log("Guest connect");
 
         // Wait until the Live Share session is ready
         await LiveShare.instance.waitForSession();
