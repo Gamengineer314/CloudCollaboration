@@ -71,8 +71,9 @@ export async function activate(_context: vscode.ExtensionContext) {
 
 
 // Function called when the extension is deactivated
-export function deactivate() {
+export async function deactivate() : Promise<void> {
     // Deactivate classes
+    await Project.deactivate();
     GoogleDrive.deactivate();
     LiveShare.deactivate();
 }

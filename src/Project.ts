@@ -90,11 +90,12 @@ export class Project {
             }
             else if (previousFolder && previousFolder.active) { // Come back to previous folder
                 if (previousFolder.disconnected) {
+                    console.log("Come back");
                     context.globalState.update("previousFolder", undefined);
                     vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
                 }
-                else { // Host disconnected -> reconnect
-                    if (currentFolder && previousFolder.path === currentFolder.path) { // Reconnect
+                else if (!currentFolder || previousFolder.path === currentFolder.path) { // Host disconnected -> reconnect
+                    if (currentFolder) { // Reconnect
                         context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
                         vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Reconnecting to project..." }, showErrorWrap(
                             async () => await Project.reconnect(previousFolder.sessionUrl, previousFolder.userIndex)
@@ -105,11 +106,24 @@ export class Project {
                         vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
                     }
                 }
+                else { // Come back to previous folder
+                    console.log("Not disconnected");
+                    context.globalState.update("previousFolder", undefined);
+                    vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
+                }
             }
             else if (currentFolder) { // Create previous folder
                 context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
             }
         }
+    }
+
+
+    /**
+     * @brief Deactivate Project class
+    **/
+    public static async deactivate() : Promise<void> {
+        
     }
 
 
@@ -480,9 +494,11 @@ export class Project {
         while (true) {
             try {
                 // Check if this user is the host
-                if ((await GoogleDrive.instance!.getState(this.project)).url !== LiveShare.instance!.sessionUrl) {
+                const currentUrl = LiveShare.instance!.sessionUrl;
+                const driveUrl = (await GoogleDrive.instance!.getState(this.project)).url;
+                if (currentUrl !== driveUrl) {
                     vscode.window.showErrorMessage("Another user is the host for this project");
-                    console.error(new Error("Another user is the host for this project"));
+                    console.error(new Error(`Another user is the host for this project\n${currentUrl} != ${driveUrl}`));
                     await Project._disconnect(this);
                     await Project.connect();
                 }

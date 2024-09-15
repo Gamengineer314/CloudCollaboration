@@ -112,6 +112,7 @@ export class LiveShare {
         if (!this.liveShare.session.id) {
             throw new Error("Failed to create Live Share session");
         }
+        this.sessionId = this.liveShare.session.id;
     }
 
 
