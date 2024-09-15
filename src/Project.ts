@@ -28,6 +28,7 @@ export class Project {
     private static _connecting : boolean = false;
     public static get connecting() : boolean { return Project._connecting; }
 
+    private _config : Config;
     private uploading : boolean = false;
     private mustUpload : boolean | undefined = undefined;
     private static clearingGarbage : boolean = false;
@@ -37,9 +38,12 @@ export class Project {
         private host: boolean,
         private state: ProjectState,
         private fileSystem: FileSystem
-    ) {}
+    ) {
+        this._config = new Config(project.name, new FilesConfig(), new ShareConfig(""));
+    }
 
     public get driveProject() : DriveProject { return this.project; }
+    public get config() : Config { return this._config; }
     public get projectPath() : string { return this.fileSystem.projectPath; }
     public get backupPath() : string { return this.fileSystem.backupPath; }
 
@@ -129,7 +133,12 @@ export class Project {
      * @brief Deactivate Project class
     **/
     public static async deactivate() : Promise<void> {
-        
+        if (Project.instance && Project.instance.host) {
+            Project.instance.mustUpload = false;
+            if (!Project.instance.uploading) {
+                await Project.instance.fileSystem.upload(Project.instance.config.filesConfig, true, true);
+            }
+        }
     }
 
 
@@ -302,6 +311,7 @@ export class Project {
                 instance.startUpload();
             }
         }, 5_000);
+        await instance.updateConfig();
         Project._instance = instance;
         LiveShare.instance!.onSessionEnd = showErrorWrap(async () => await Project.disconnect());
 
@@ -352,6 +362,7 @@ export class Project {
 
         // Connect
         await instance.fileSystem.startSync(false);
+        await instance.updateConfig();
         Project._instance = instance;
         context.globalState.update("projectState", undefined);
 
@@ -483,11 +494,11 @@ export class Project {
                 await context.globalState.update("previousFolder", previousFolder);
             }
 
-            await instance.fileSystem.clear(new FilesConfig(), false);
+            await instance.fileSystem.clear(instance.config.filesConfig, false);
         }
         await LiveShare.instance!.exitSession();
         if (instance.host) {
-            await instance.fileSystem.clear(new FilesConfig(), true);
+            await instance.fileSystem.clear(instance.config.filesConfig, true);
 
             // Setup editor
             await vscode.commands.executeCommand("workbench.action.terminal.killAll");
@@ -535,7 +546,8 @@ export class Project {
                 this.uploading = true;
                 await vscode.commands.executeCommand("workbench.action.files.saveAll");
                 await sleep(1000);
-                await this.fileSystem.upload((await this.getConfig()).filesConfig);
+                await this.updateConfig();
+                await this.fileSystem.upload(this.config.filesConfig);
                 this.uploading = false;
                 await waitFor(() => this.mustUpload !== undefined);
                 if (!this.mustUpload) {
@@ -562,7 +574,7 @@ export class Project {
         try {
             await vscode.commands.executeCommand("workbench.action.files.saveAll");
             await sleep(1000);
-            await this.fileSystem.upload((await this.getConfig()).filesConfig, true);
+            await this.fileSystem.upload(this.config.filesConfig, true);
         }
         catch (error: any) {
             this.mustUpload = true; // Resume upload
@@ -639,21 +651,19 @@ export class Project {
 
 
     /**
-     * @brief Get the .collabconfig file in the current folder if it exists, create a default one otherwise
+     * @brief Update config from the .collabconfig file if it exists, create a default one otherwise
     **/
-    public async getConfig() : Promise<Config> {
-        let config: Config;
+    public async updateConfig() : Promise<void> {
         try {
-            config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(collaborationUri(".collabconfig")))) as Config;
+            this._config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(collaborationUri(".collabconfig")))) as Config;
         }
         catch {
             console.log("Create config");
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
-            config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.instance!.getEmail()));
-            await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(config, null, 4)));
+            this._config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.instance!.getEmail()));
+            await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
             vscode.window.showInformationMessage("Project configuration file created");
         }
-        return config;
     }
 
 }

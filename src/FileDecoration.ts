@@ -77,15 +77,12 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
      * @brief Update the decorations of all files
     **/
     public async update() {
-        // Get the config from the getConfig function
+        // Get the static and ignore rules
         if (!Project.instance) {
             throw new Error("File decoration failed : not connected");
         }
-        const config = await Project.instance.getConfig();
-
-        // Get the static and ignore rules
-        staticRules = config.filesConfig.staticRules;
-        ignoreRules = config.filesConfig.ignoreRules;
+        staticRules = Project.instance.config.filesConfig.staticRules;
+        ignoreRules = Project.instance.config.filesConfig.ignoreRules;
 
 
         // Update the decorations

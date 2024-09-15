@@ -94,14 +94,17 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 
                 case  'remove_member':
                     await this.removeMember(e.index, project, document);
+                    await Project.instance?.updateConfig();
                     return;
                 
                 case 'remove_invite':
                     await this.removeInvite(e.index, project, document);
+                    await Project.instance?.updateConfig();
                     return;
                 
                 case 'add_member':
                     await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Inviting member..." }, showErrorWrap(this.addMember.bind(this, e.email, project, document)));
+                    await Project.instance?.updateConfig();
                     return;
                 
                 case 'global_sharing':
@@ -110,6 +113,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     } else {
                         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Disabling global sharing..." }, showErrorWrap(this.disableGlobalSharing.bind(this, project, document)));
                     }
+                    await Project.instance?.updateConfig();
                     return;
 
                 case 'copy_link':
@@ -121,6 +125,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                 
                 case 'save_ignored':
                     await this.saveIgnored(e.value, project, document);
+                    await Project.instance?.updateConfig();
                     // Update file decorations
                     await IgnoreStaticDecorationProvider.instance?.update();
 
@@ -128,6 +133,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 
                 case 'save_static':
                     await this.saveStatic(e.value, project, document);
+                    await Project.instance?.updateConfig();
                     // Update file decorations
                     await IgnoreStaticDecorationProvider.instance?.update();
 
@@ -139,7 +145,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(project, null, 4));
                     vscode.workspace.applyEdit(edit);
                     await vscode.workspace.save(document.uri);
-
+                    await Project.instance?.updateConfig();
                     return;
                 
                 case 'backup_frequency':
@@ -148,7 +154,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     edit2.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(project, null, 4));
                     vscode.workspace.applyEdit(edit2);
                     await vscode.workspace.save(document.uri);
-
+                    await Project.instance?.updateConfig();
                     return;
                 
                 case 'copy_backup_path':

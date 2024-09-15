@@ -151,8 +151,9 @@ export class FileSystem {
      * @brief Upload files from the project folder to Google Drive
      * @param config Files configuration
      * @param clearUrl Wether or not to clear the URL in the state (default: false)
+     * @param uploadOnly Wether or not to only upload and not also write locally and in backups (default: false)
     **/
-    public async upload(config: FilesConfig, clearUrl: boolean = false) : Promise<void> {
+    public async upload(config: FilesConfig, clearUrl: boolean = false, uploadOnly: boolean = false) : Promise<void> {
         console.log("Upload");
 
         // Check if files were changed
@@ -209,7 +210,9 @@ export class FileSystem {
             }
             const serializedFiles = serializer.get();
             await GoogleDrive.instance!.setDynamic(this.driveProject, serializedFiles);
-            await vscode.workspace.fs.writeFile(this.storageUri("project.collabdynamic"), serializedFiles);
+            if (!uploadOnly) {
+                await vscode.workspace.fs.writeFile(this.storageUri("project.collabdynamic"), serializedFiles);
+            }
             this.state.dynamicVersion = this.storageProject.version + 1;
         }
         if (staticChanged) {
@@ -220,7 +223,9 @@ export class FileSystem {
             }
             const serializedFiles = serializer.get();
             await GoogleDrive.instance!.setStatic(this.driveProject, serializedFiles);
-            await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), serializedFiles);
+            if (!uploadOnly) {
+                await vscode.workspace.fs.writeFile(this.storageUri("project.collabstatic"), serializedFiles);
+            }
             this.state.staticVersion = this.storageProject.version + 1;
         }
 
@@ -235,11 +240,13 @@ export class FileSystem {
         if (dynamicChanged || staticChanged) {
             // Increment version if files were changed
             await GoogleDrive.instance!.setState(this.driveProject, this.state);
-            this.storageProject.version++;
-            await vscode.workspace.fs.writeFile(this.storageUri("project.json"), new TextEncoder().encode(JSON.stringify(this.storageProject)));
+            if (!uploadOnly) {
+                this.storageProject.version++;
+                await vscode.workspace.fs.writeFile(this.storageUri("project.json"), new TextEncoder().encode(JSON.stringify(this.storageProject)));
+            }
 
             // Backup
-            if (this.backupCount === -1) {
+            if (!uploadOnly && this.backupCount === -1) {
                 console.log("Backup");
                 this.backupCount = 0;
                 const backupsUri = this.storageUri("Backups");
@@ -259,7 +266,7 @@ export class FileSystem {
         }
 
         // Backup frequency
-        if (this.backupCount !== -1) {
+        if (!uploadOnly && this.backupCount !== -1) {
             this.backupCount++;
             if (this.backupCount === config.backupFrequency) {
                 this.backupCount = -1;
