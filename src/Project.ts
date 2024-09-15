@@ -275,6 +275,7 @@ export class Project {
             }
         }, 5_000);
         Project._instance = instance;
+        LiveShare.instance!.onSessionEnd = showErrorWrap(async () => await Project.disconnect());
 
         // Setup editor
         await IgnoreStaticDecorationProvider.instance?.update();
@@ -440,6 +441,8 @@ export class Project {
         Project._instance = undefined;
         instance.mustUpload = false;
         instance.fileSystem.stopSync();
+        LiveShare.instance!.onIndexChanged = () => {};
+        LiveShare.instance!.onSessionEnd = () => {};
         if (!instance.host) {
             // Update previous folder
             const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
@@ -447,7 +450,6 @@ export class Project {
                 previousFolder.disconnected = true;
                 await context.globalState.update("previousFolder", previousFolder);
             }
-            LiveShare.instance!.onIndexChanged = () => {};
 
             await instance.fileSystem.clear(new FilesConfig(), false);
         }

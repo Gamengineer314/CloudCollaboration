@@ -9,22 +9,24 @@ export class LiveShare {
     public static get instance() : LiveShare | undefined { return LiveShare._instance; }
 
     private liveShare : vlsl.LiveShare;
+    private sessionId : string | null = null;
     private userIndex : number = 0;
     private _onIndexChanged : (userIndex: number) => any = () => {};
-    private eventDisposable : vscode.Disposable | undefined = undefined;
+    private _onSessionEnd : () => any = () => {};
+    private disposables : vscode.Disposable[] = [];
 
     private constructor(liveShare: vlsl.LiveShare) {
         this.liveShare = liveShare;
     }
 
+
     /**
      * @brief Url of the current session
     **/
     public get sessionUrl() : string | null { 
-        return this.liveShare.session.id === null ? 
-            null : 
-            "https://prod.liveshare.vsengsaas.visualstudio.com/join?" + this.liveShare.session.id; 
+        return this.sessionId === null ? null : "https://prod.liveshare.vsengsaas.visualstudio.com/join?" + this.liveShare.session.id; 
     };
+
 
     /**
      * @brief
@@ -35,6 +37,14 @@ export class LiveShare {
         this._onIndexChanged = onIndexChanged;
         onIndexChanged(this.userIndex);
     };
+
+
+    /**
+     * @brief Register a callback to be called when the session ends
+    **/
+    public set onSessionEnd(onSessionEnd: () => any) {
+        this._onSessionEnd = onSessionEnd;
+    }
 
 
     /**
@@ -52,9 +62,9 @@ export class LiveShare {
             throw new Error("LiveShare initialization failed : Live Share not available");
         }
 
-        // Update userIndex
+        // Update sessionId and userIndex
         const instance = new LiveShare(liveShare);
-        instance.eventDisposable = liveShare.onDidChangePeers(showErrorWrap(_ => {
+        instance.disposables.push(liveShare.onDidChangePeers(showErrorWrap(_ => {
             if (instance.liveShare.session.id !== null) {
                 const oldIndex = instance.userIndex;
                 instance.userIndex = instance.liveShare.peers
@@ -64,7 +74,13 @@ export class LiveShare {
                     instance._onIndexChanged(instance.userIndex);
                 }
             }
-        }));
+        })));
+        instance.disposables.push(liveShare.onDidChangeSession(showErrorWrap(_ => {
+            if (instance.liveShare.session.id === null && instance.sessionId !== null) {
+                instance._onSessionEnd();
+            }
+            instance.sessionId = instance.liveShare.session.id;
+        })));
 
         LiveShare._instance = instance;
         vscode.commands.executeCommand("setContext", "cloud-collaboration.liveShareAvailable", true);
@@ -76,7 +92,9 @@ export class LiveShare {
     **/
     public static async deactivate() : Promise<void> {
         if (LiveShare._instance) {
-            LiveShare._instance.eventDisposable?.dispose();
+            for (const disposable of LiveShare._instance.disposables) {
+                disposable.dispose();
+            }
             LiveShare._instance = undefined;
             vscode.commands.executeCommand("setContext", "cloud-collaboration.liveShareAvailable", false);
         }
