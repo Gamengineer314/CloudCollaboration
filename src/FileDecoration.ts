@@ -1,5 +1,5 @@
-import { CancellationToken, FileDecoration, FileDecorationProvider, ThemeColor, Uri, Event, Disposable } from "vscode";
-import { collaborationName, collaborationRecurListFolder, collaborationUri, currentRecurListFolder, currentUri } from "./util";
+import { CancellationToken, FileDecoration, FileDecorationProvider, ThemeColor, Uri, Event, EventEmitter, Disposable } from "vscode";
+import { collaborationName, currentRecurListFolder, currentUri } from "./util";
 import { match } from "./FileRules";
 import { Project } from "./Project";
 
@@ -8,8 +8,6 @@ let staticRules: Array<string> = new Array<string>();
 let ignoreRules: Array<string> = new Array<string>();
 
 export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
-
-    private listeners: Set<(e: Uri[]) => any> = new Set<(e: Uri[]) => any>();
 
     private static _instance: IgnoreStaticDecorationProvider | undefined = undefined;
     public static get instance() { return IgnoreStaticDecorationProvider._instance; }
@@ -21,15 +19,8 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
         IgnoreStaticDecorationProvider._instance = this;
     }
 
-    public onDidChangeFileDecorations(listener: (e: Uri[]) => any, thisArgs?: any, disposables?: Disposable[]): Disposable {
-        const func = listener.bind(thisArgs);
-        this.listeners.add(func);
-        const disposable = new Disposable(this.listeners.delete.bind(this.listeners, func));
-        if (disposables) {
-            disposables.push(disposable);
-        }
-        return disposable;
-    }
+    private _onDidChangeFileDecorations: EventEmitter<Uri[]> = new EventEmitter<Uri[]>();
+    public readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeFileDecorations.event;
 
     public provideFileDecoration(uri: Uri, _token: CancellationToken): FileDecoration | undefined {
         // Remove .collab64 at the end of the file name if it exists
@@ -91,8 +82,6 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
         
         // Convert to URIs using collaborationUri()
         const uris = names.map(name => currentUri(name));
-        for (const listener of this.listeners) {
-            listener(uris);
-        }
+        this._onDidChangeFileDecorations.fire(uris);
     }
 }

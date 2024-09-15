@@ -92,7 +92,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     updateWebview();
                     return;
 
-                case  'remove_member':
+                case 'remove_member':
                     await this.removeMember(e.index, project, document);
                     await Project.instance?.updateConfig();
                     return;
