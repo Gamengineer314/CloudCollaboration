@@ -343,6 +343,7 @@ export class FileSystem {
     public async startSync(host: boolean) : Promise<void> {
         // Copy files from the collaboration folder to the project folder
         if (!host) {
+            await vscode.workspace.fs.writeFile(this.storageUri("garbageMarker"), new Uint8Array());
             for (const file of await vscode.workspace.fs.readDirectory(this.projectFolder)) {
                 await vscode.workspace.fs.delete(this.projectUri(file[0]), { recursive: true });
             }

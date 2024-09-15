@@ -415,7 +415,7 @@ export class Project {
                     console.log("Previous disconnected");
                     break;
                 }
-                if (state.url !== sessionUrl) {
+                if (state.url !== "" && state.url !== sessionUrl) {
                     console.log("New connected");
                     break;
                 }
