@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { DriveProject } from './GoogleDrive';
-import { randomString } from './util';
+import { randomString, showErrorWrap } from './util';
 import { Project } from './Project';
 import { context } from './extension';
 
@@ -28,7 +28,7 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined, Project.connecting);
 
         // Receive message from the webview.
-        webviewPanel.webview.onDidReceiveMessage(async e => {
+        webviewPanel.webview.onDidReceiveMessage(showErrorWrap(async e => {
             switch (e.type) {
                 case 'openFolder':
                     this.openFolder(documentFolder);
@@ -46,7 +46,7 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
                     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined, Project.connecting);
                     return;
             }
-        });
+        }));
     }
 
 

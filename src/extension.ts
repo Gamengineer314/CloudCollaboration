@@ -75,4 +75,5 @@ export async function activate(_context: vscode.ExtensionContext) {
 export function deactivate() {
     // Deactivate classes
     GoogleDrive.deactivate();
+    LiveShare.deactivate();
 }
