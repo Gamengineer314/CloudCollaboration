@@ -219,6 +219,7 @@ export class Project {
                     }
                     else {
                         // Save project state and join Live Share session (the extension will restart)
+                        await LiveShare.activate();
                         await context.globalState.update("projectState", instance);
                         await LiveShare.instance!.joinSession(projectState.url);
                     }
@@ -264,6 +265,7 @@ export class Project {
 
     private static async _hostConnect(instance: Project) : Promise<void> {
         // Connect
+        await LiveShare.activate();
         await instance.fileSystem.download();
         await LiveShare.instance!.createSession();
         instance.state.url = LiveShare.instance!.sessionUrl!;
@@ -314,6 +316,7 @@ export class Project {
 
     private static async _guestConnect(instance: Project) : Promise<void> {
         // Wait until the Live Share session is ready
+        await LiveShare.activate();
         await LiveShare.instance!.waitForSession();
         await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "default");
         await waitFor(() => vscode.window.activeTextEditor !== undefined);

@@ -29,7 +29,6 @@ export async function activate(_context: vscode.ExtensionContext) {
     vscode.commands.executeCommand("setContext", "cloud-collaboration.liveShareAvailable", false);
 
     // Activate classes
-    await LiveShare.activate();
     await GoogleDrive.activate();
     await Project.activate();
 

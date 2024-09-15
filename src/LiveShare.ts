@@ -24,7 +24,7 @@ export class LiveShare {
      * @brief Url of the current session
     **/
     public get sessionUrl() : string | null { 
-        return this.sessionId === null ? null : "https://prod.liveshare.vsengsaas.visualstudio.com/join?" + this.liveShare.session.id; 
+        return this.sessionId === null ? null : "https://prod.liveshare.vsengsaas.visualstudio.com/join?" + this.sessionId; 
     };
 
 
@@ -48,12 +48,12 @@ export class LiveShare {
 
 
     /**
-     * @brief Activate LiveShare class
+     * @brief Activate LiveShare class if it wasn't already
     **/
     public static async activate() : Promise<void> {
         // Check instance
         if (LiveShare._instance) {
-            throw new Error("LiveShare initialization failed : already initialized");
+            return;
         }
 
         // Get Live Share API if available
