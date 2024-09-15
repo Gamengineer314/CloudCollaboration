@@ -83,6 +83,7 @@ export class FileSystem {
     **/
     public async download() : Promise<void> {
         console.log("Download");
+        await vscode.workspace.fs.writeFile(this.storageUri("garbageMarker"), new Uint8Array());
 
         // Download dynamic files if they were changed
         let dynamicFiles;
@@ -297,6 +298,34 @@ export class FileSystem {
             }
             await vscode.workspace.applyEdit(deleteEdit);
         }
+
+        await vscode.workspace.fs.delete(this.storageUri("garbageMarker"));
+    }
+
+
+    /**
+     * @brief Clear files that were not cleared last time in the current and project folders
+    **/
+    public static async clearGarbage() : Promise<void> {
+        // Storage folders
+        const storageFolder = context.storageUri;
+        if (!storageFolder) {
+            throw new Error("FileSystem initialization failed : no storage folder");
+        }
+        const projectFolder = fileUri("Project", storageFolder);
+
+        // Check if there are files to clear
+        try {
+            await vscode.workspace.fs.stat(fileUri("garbageMarker", storageFolder));
+        }
+        catch {
+            return;
+        }
+
+        // Clear files
+        console.log("Clear garbage");
+        const fileSystem = new FileSystem(new ProjectState(), new DriveProject("", "", "", "", ""), new StorageProject(0, "", ""), storageFolder, projectFolder);
+        await fileSystem.clear(new FilesConfig(), true);
     }
 
 

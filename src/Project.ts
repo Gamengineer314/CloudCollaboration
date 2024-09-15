@@ -30,6 +30,7 @@ export class Project {
 
     private uploading : boolean = false;
     private mustUpload : boolean | undefined = undefined;
+    private static clearingGarbage : boolean = false;
 
     private constructor(
         private project: DriveProject,
@@ -47,7 +48,6 @@ export class Project {
      * @brief Activate Project class
     **/
     public static async activate() : Promise<void> {
-        // Restore project state after a restart for joining a Live Share session
         const project = context.globalState.get<Project>("projectState");
         const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
         console.log(JSON.stringify(previousFolder));
@@ -88,8 +88,8 @@ export class Project {
                 vscode.window.showErrorMessage("Project activation failed : invalid state");
                 console.error(new Error("Project activation failed : invalid state"));
             }
-            else if (previousFolder && previousFolder.active) { // Come back to previous folder
-                if (previousFolder.disconnected) {
+            else if (previousFolder && previousFolder.active) {
+                if (previousFolder.disconnected) { // Come back to previous folder
                     console.log("Come back");
                     context.globalState.update("previousFolder", undefined);
                     vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
@@ -115,6 +115,12 @@ export class Project {
             else if (currentFolder) { // Create previous folder
                 context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
             }
+        }
+
+        // Clear remaining files
+        if (currentFolder) {
+            Project.clearingGarbage = true;
+            FileSystem.clearGarbage().then(() => Project.clearingGarbage = false);
         }
     }
 
@@ -211,13 +217,16 @@ export class Project {
         }
 
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(async () => {
-            // Check if not connected
+            // Checks
             if (Project.instance || Project.connecting) {
                 throw new Error("Connection failed : already connected");
             }
             Project._connecting = true;
-            console.log("Connect");
+            if (Project.clearingGarbage) {
+                await waitFor(() => !Project.clearingGarbage);
+            }
 
+            console.log("Connect");
             try {
                 // Get project information from .collablaunch file
                 const driveProject = project || JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
@@ -256,14 +265,17 @@ export class Project {
      * @param instance Project instance
     **/
     private static async hostConnect(instance: Project) : Promise<void> {
-        // Check if not connected
+        // Checks
         if (Project.instance || Project.connecting) {
             throw new Error("Connection failed : already connected");
         }
         Project._connecting = true;
-        console.log("Host connect");
+        if (Project.clearingGarbage) {
+            await waitFor(() => !Project.clearingGarbage);
+        }
 
         // Connect
+        console.log("Host connect");
         try {
             await Project._hostConnect(instance);
         }
@@ -307,14 +319,17 @@ export class Project {
      * @param instance Project instance
     **/
     private static async guestConnect(instance: Project) : Promise<void> {
-        // Check if not connected
+        // Checks
         if (Project.instance || Project.connecting) {
             throw new Error("Connection failed : already connected");
         }
         Project._connecting = true;
-        console.log("Guest connect");
+        if (Project.clearingGarbage) {
+            await waitFor(() => !Project.clearingGarbage);
+        }
 
         // Connect
+        console.log("Guest connect");
         try {
             await Project._guestConnect(instance);
         }
