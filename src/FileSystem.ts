@@ -16,6 +16,7 @@ export class FileSystem {
     private previousStatic : Set<string> = new Set<string>();
     private binaryFiles : Set<string> = new Set<string>(); // Name of all binary files
     private createdFiles : Set<string> = new Set<string>(); // Name of the files that were just created by the user
+    private backupCount : number = -1;
     private syncDisposables : vscode.Disposable[] = [];
     
     private constructor(
@@ -237,18 +238,30 @@ export class FileSystem {
             await vscode.workspace.fs.writeFile(this.storageUri("project.json"), new TextEncoder().encode(JSON.stringify(this.storageProject)));
 
             // Backup
-            const backupsUri = this.storageUri("Backups");
-            const backups = (await vscode.workspace.fs.readDirectory(backupsUri)).map(file => file[0]).sort();
-            if (backups.length >= config.maximumBackups) {
-                await vscode.workspace.fs.delete(fileUri(backups[0], backupsUri), { recursive: true });
+            if (this.backupCount === -1) {
+                console.log("Backup");
+                this.backupCount = 0;
+                const backupsUri = this.storageUri("Backups");
+                const backups = (await vscode.workspace.fs.readDirectory(backupsUri)).map(file => file[0]).sort();
+                if (backups.length >= config.maximumBackups) {
+                    await vscode.workspace.fs.delete(fileUri(backups[0], backupsUri), { recursive: true });
+                }
+                const backupUri = fileUri("Backup" + this.storageProject.version, backupsUri);
+                await vscode.workspace.fs.createDirectory(backupUri);
+                for (const [name, content] of dynamicFiles) {
+                    await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
+                }
+                for (const [name, content] of staticFiles) {
+                    await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
+                }
             }
-            const backupUri = fileUri("Backup" + this.storageProject.version, backupsUri);
-            await vscode.workspace.fs.createDirectory(backupUri);
-            for (const [name, content] of dynamicFiles) {
-                await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
-            }
-            for (const [name, content] of staticFiles) {
-                await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
+        }
+
+        // Backup frequency
+        if (this.backupCount !== -1) {
+            this.backupCount++;
+            if (this.backupCount === config.backupFrequency) {
+                this.backupCount = -1;
             }
         }
 
