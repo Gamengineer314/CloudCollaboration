@@ -2,8 +2,9 @@
   "name": "cloud-collaboration",
   "displayName": "Cloud Collaboration",
   "description": "Real-time collaboration with cloud storage",
-  "version": "0.0.1",
-  "icon":  "media/icon.png",
+  "version": "1.0.0",
+  "icon":  "media/icon_high.png",
+  "publisher": "gamengineer314",
   "engines": {
     "vscode": "^1.92.0"
   },
@@ -215,5 +216,8 @@
   "dependencies": {
     "googleapis": "^142.0.0",
     "vsls": "^1.0.4753"
-  }
+  },
+  "extensionDependencies": [
+    "ms-vsliveshare.vsliveshare"
+  ]
 }
