@@ -17,6 +17,9 @@ When connecting to a project, the extension automatically joins another particip
 
 ![Example](media/CloudCollaboration.gif)
 
+## Warning
+The extension is new and has not yet been extensively tested so it may still contain bugs. To prevent data loss, project files are regularly and automatically backed up. You can choose how many backups are maintained, how often they are added, and find the path where they are stored in the _.collabconfig_ file. If you find any bug, please report it on [GitHub](https://github.com/Gamengineer314/CloudCollaboration/issues).
+
 ## Limitations
 Because it depends on Live Share and Google Drive, Cloud Collaboration has some limitations : 
 - Binary files : Live Share does not support binary files. Cloud Collaboration offers a limited support by encoding them as text files. These files will have a _.collab64_ extension. The unencoded version of the files are stored in a folder containing a copy of the project. By default, terminals you create when you are connected to a project open in this folder, so you can interact with both binary and text files from the terminal. This also means that you can't upload binary files by dragging them into the file explorer. To add binary files to a project, right-click in the file explorer and click on _Cloud Collaboration: Upload Files_.
