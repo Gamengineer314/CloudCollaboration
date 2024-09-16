@@ -271,7 +271,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                     <img id="b_help_icon" class="help_icon" src="${helpIcon}" />
                 </div>
                 <div class="help_div">
-                    <span id="b_help_text" class="help_text">In case anything goes wrong, your project files are backed up regularly. When a new backup is added, the oldest one is deleted. You can choose how many backups are maintained and how frequently backups are added. ( Files are backed up on the machine of the current host of the Live Share session )</span>
+                    <span id="b_help_text" class="help_text">In case anything goes wrong, your project files are backed up regularly. When a new backup is added, the oldest one is deleted. You can choose how many backups are maintained and how often they are added. ( Files are backed up on the machine of the current host of the Live Share session )</span>
                 </div>
 
                 <div id="backup">

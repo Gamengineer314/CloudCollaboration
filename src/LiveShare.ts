@@ -108,7 +108,7 @@ export class LiveShare {
         if (this.liveShare.session.id) {
             throw new Error("Can't create Live Share session : already in a session");
         }
-        console.log(await this.liveShare.share({ suppressNotification: true }));
+        await this.liveShare.share();
         if (!this.liveShare.session.id) {
             throw new Error("Failed to create Live Share session");
         }

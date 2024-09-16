@@ -130,7 +130,6 @@ function updateMembers(owner, members, invites, public, publicMembers, isOwner, 
     }
 
     // Backups
-    console.log(backup_frequency);
     backupFrequency.value = backup_frequency.toString();
     backupAmount.value = backup_amount.toString();
 
