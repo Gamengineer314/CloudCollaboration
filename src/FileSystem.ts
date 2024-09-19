@@ -581,6 +581,7 @@ export class FileSystem {
         state.projectModifying = true;
 
         // Modify collaboration file while project file is modified
+        let saveEdit: vscode.WorkspaceEdit | null = null;
         do {
             state.projectContinue = false;
 
@@ -641,11 +642,10 @@ export class FileSystem {
                             console.log("Modify collaboration file");
                             state.content = content;
                             const str = collabName.endsWith(".collab64") ? toBase64(content) : new TextDecoder().decode(content);
-                            const edit = new vscode.WorkspaceEdit();
-                            edit.replace(collaborationUri(collabName), new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
-                            if (!state.projectContinue) {
-                                await this.applyEditAndSave(edit, state);
+                            if (!saveEdit) {
+                                saveEdit = new vscode.WorkspaceEdit();
                             }
+                            saveEdit.replace(collaborationUri(collabName), new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
                         }
                     }
                 }
@@ -663,6 +663,9 @@ export class FileSystem {
             }
 
         } while (state.projectContinue);
+        if (saveEdit) {
+            await this.applyEditAndSave(saveEdit, state);
+        }
 
         state.projectModifying = false;
         this.filesContent.delete(projectName);
