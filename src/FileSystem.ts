@@ -456,7 +456,7 @@ export class FileSystem {
         }
         if (state.collaborationModifying) {
             console.log("Collaboration already modifying");
-            state.collaborationContinue = true;
+            state.continue = true;
             return;
         }
         state.collaborationModifying = true;
@@ -467,7 +467,7 @@ export class FileSystem {
 
         // Modify project file while collaboration file is modified
         do {
-            state.collaborationContinue = false;
+            state.continue = false;
 
             // Get content, file type and wether or not the file was deleted
             let content: Uint8Array | null | undefined;
@@ -540,7 +540,7 @@ export class FileSystem {
                 console.log("Not modified");
             }
 
-        } while (state.collaborationContinue);
+        } while (state.continue);
 
         state.collaborationModifying = false;
         this.filesContent.delete(projectName);
@@ -575,7 +575,7 @@ export class FileSystem {
         }
         if (state.projectModifying) {
             console.log("Project already modifying");
-            state.projectContinue = true;
+            state.continue = true;
             return;
         }
         state.projectModifying = true;
@@ -583,7 +583,7 @@ export class FileSystem {
         // Modify collaboration file while project file is modified
         let saveEdit: vscode.WorkspaceEdit | null = null;
         do {
-            state.projectContinue = false;
+            state.continue = false;
 
             // Get content, file type and wether or not the file was deleted
             let content: Uint8Array | null | undefined;
@@ -633,7 +633,7 @@ export class FileSystem {
                             console.log("Create collaboration file");
                             create = false;
                             state.content = new Uint8Array();
-                            state.projectContinue = true;
+                            state.continue = true;
                             const edit = new vscode.WorkspaceEdit();
                             edit.createFile(collaborationUri(collabName));
                             await vscode.workspace.applyEdit(edit);
@@ -662,7 +662,7 @@ export class FileSystem {
                 console.log("Not modified");
             }
 
-        } while (state.projectContinue);
+        } while (state.continue);
         if (saveEdit) {
             await this.applyEditAndSave(saveEdit, state);
         }
@@ -829,9 +829,8 @@ class StorageProject {
 class FileState {
     public content: Uint8Array | null | undefined = undefined; // null: deleted, undefined: directory or not yet assigned
     public projectModifying: boolean = false;
-    public projectContinue: boolean = false;
     public collaborationModifying: boolean = false;
-    public collaborationContinue: boolean = false;
+    public continue: boolean = false;
     public autoSave: boolean = false;
     public saveResolve: ((value: void | PromiseLike<void>) => void) | null = null;
 }
