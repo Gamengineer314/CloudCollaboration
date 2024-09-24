@@ -3,7 +3,7 @@ import { GoogleDrive, DriveProject, Permission, ProjectState } from "./GoogleDri
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { collaborationFolder, context, currentFolder } from "./extension";
-import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, sleep, waitFor, collaborationName } from "./util";
+import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, sleep, waitFor, collaborationName, log } from "./util";
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 
 
@@ -54,7 +54,7 @@ export class Project {
     public static async activate() : Promise<void> {
         const project = context.globalState.get<Project>("projectState");
         const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
-        console.log(JSON.stringify(previousFolder));
+        log(JSON.stringify(previousFolder));
         if (project && previousFolder) { // Connected to a project
             const instance = new Project(project.project, project.host, project.state, FileSystem.copy(project.fileSystem));
             if (!previousFolder.active) { // Continue connecting
@@ -75,7 +75,7 @@ export class Project {
                         ));
                     }
                     else { // Come back to previous folder
-                        console.log("Connection error");
+                        log("Connection error");
                         vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
                     }
                 }
@@ -94,7 +94,7 @@ export class Project {
             }
             else if (previousFolder && previousFolder.active) {
                 if (previousFolder.disconnected) { // Come back to previous folder
-                    console.log("Come back");
+                    log("Come back");
                     context.globalState.update("previousFolder", undefined);
                     vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
                 }
@@ -106,12 +106,12 @@ export class Project {
                         ));
                     }
                     else { // Come back to previous folder
-                        console.log("Reconnection");
+                        log("Reconnection");
                         vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
                     }
                 }
                 else { // Come back to previous folder
-                    console.log("Not disconnected");
+                    log("Not disconnected");
                     context.globalState.update("previousFolder", undefined);
                     vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
                 }
@@ -235,7 +235,7 @@ export class Project {
                 await waitFor(() => !Project.clearingGarbage);
             }
 
-            console.log("Connect");
+            log("Connect");
             try {
                 // Get project information from .collablaunch file
                 const driveProject = project || JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
@@ -284,7 +284,7 @@ export class Project {
         }
 
         // Connect
-        console.log("Host connect");
+        log("Host connect");
         try {
             await Project._hostConnect(instance);
         }
@@ -339,7 +339,7 @@ export class Project {
         }
 
         // Connect
-        console.log("Guest connect");
+        log("Guest connect");
         try {
             await Project._guestConnect(instance);
         }
@@ -401,7 +401,7 @@ export class Project {
             throw new Error("Connection failed : already connected");
         }
         Project._connecting = true;
-        console.log("Reconnect");
+        log("Reconnect");
 
         try {
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
@@ -412,15 +412,15 @@ export class Project {
             while (true) {
                 state = await GoogleDrive.instance!.getState(project);
                 if (userIndex === 1 && state.url === "") {
-                    console.log("Previous disconnected");
+                    log("Previous disconnected");
                     break;
                 }
                 if (state.url !== "" && state.url !== sessionUrl) {
-                    console.log("New connected");
+                    log("New connected");
                     break;
                 }
                 if (Date.now() > endTime) {
-                    console.log("Timeout");
+                    log("Timeout");
                     break;
                 }
                 await sleep(1_000);
@@ -437,11 +437,11 @@ export class Project {
                 while (true) {
                     state = await GoogleDrive.instance!.getState(project);
                     if (state.url !== "" && state.url !== sessionUrl) {
-                        console.log("New connected");
+                        log("New connected");
                         break;
                     }
                     if (Date.now() > endTime) {
-                        console.log("Timeout");
+                        log("Timeout");
                         break;
                     }
                     await sleep(1_000);
@@ -463,7 +463,7 @@ export class Project {
     **/
     public static async disconnect() : Promise<void> {
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Disconnecting from project..." }, showErrorWrap(async () => {
-            console.log("Disconnect");
+            log("Disconnect");
             const instance = Project.instance!;
             if (instance.host) {
                 // Last upload
@@ -480,7 +480,7 @@ export class Project {
      * @param instance Project instance
     **/
     private static async _disconnect(instance: Project) : Promise<void> {
-        console.log("_disconnect");
+        log("_disconnect");
         Project._instance = undefined;
         instance.mustUpload = false;
         instance.fileSystem.stopSync();
@@ -511,7 +511,7 @@ export class Project {
      * @brief Start uploading files regularly to Google Drive
     **/
     private startUpload() : void {
-        console.log("Start upload");
+        log("Start upload");
         this.mustUpload = true;
         this.upload();
     }
@@ -566,7 +566,7 @@ export class Project {
      * @brief Stop uploading files regularly to Google Drive
     **/
     private async stopUpload() : Promise<void> {
-        console.log("Stop upload");
+        log("Stop upload");
         this.mustUpload = undefined; // Pause upload
         if (this.uploading) {
             await waitFor(() => !this.uploading);
@@ -658,7 +658,7 @@ export class Project {
             this._config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(collaborationUri(".collabconfig")))) as Config;
         }
         catch {
-            console.log("Create config");
+            log("Create config");
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
             this._config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.instance!.getEmail()));
             await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));

@@ -13,6 +13,7 @@ import { BinaryFileEditorProvider } from "./BinaryFileEditor";
 export let context : vscode.ExtensionContext;
 export let currentFolder: vscode.Uri;
 export let collaborationFolder: vscode.Uri;
+export let output: vscode.LogOutputChannel;
 
 
 // Function called when the extension is activated
@@ -22,6 +23,7 @@ export async function activate(_context: vscode.ExtensionContext) {
         currentFolder = vscode.workspace.workspaceFolders?.[0].uri;
         collaborationFolder = vscode.Uri.joinPath(currentFolder, "Cloud Collaboration");
     }
+    output = vscode.window.createOutputChannel("Cloud Collaboration", { log: true });
 
 	// Custom contexts for 'when' clauses
 	vscode.commands.executeCommand("setContext", "cloud-collaboration.authenticated", false);

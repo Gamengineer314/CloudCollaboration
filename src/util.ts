@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { collaborationFolder, currentFolder } from "./extension";
+import { collaborationFolder, currentFolder, output } from "./extension";
 
 
 /**
@@ -162,4 +162,10 @@ export async function waitFor(condition: () => boolean, interval: number = 100) 
     while (!condition()) {
         await sleep(interval);
     }
+}
+
+
+export function log(message: string) {
+    output.appendLine(message);
+    console.log(`[${new Date().toLocaleString()}] ${message}`);
 }

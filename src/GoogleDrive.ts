@@ -118,7 +118,6 @@ export class GoogleDrive {
                     vscode.window.showErrorMessage("Authentication failed : prompt not opened");
                     GoogleDrive.server?.close();
                     GoogleDrive.server = undefined;
-                    console.log("Resolving failure");
                     resolve();
                 }
             }));
