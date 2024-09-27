@@ -514,23 +514,18 @@ export class Project {
     private startUpload() : void {
         log("Start upload");
         this.mustUpload = true;
-        this.upload();
+        this.uploadLoop();
     }
 
-    private async upload() : Promise<void> {
+
+    /**
+     * @brief Upload files regularly to Google Drive
+    **/
+    private async uploadLoop() : Promise<void> {
         while (true) {
-            try {
-                // Check if this user is the host
-                const currentUrl = LiveShare.instance!.sessionUrl;
-                const driveUrl = (await GoogleDrive.instance!.getState(this.project)).url;
-                if (currentUrl !== driveUrl) {
-                    logError(`Another user is the host for this project\n${currentUrl} != ${driveUrl}`);
-                    await Project._disconnect(this);
-                    await Project.connect();
-                }
-            }
-            catch (error: any) {
-                logError(error.message);
+            // Check host
+            if (await this.checkHost()) {
+                break;
             }
 
             // Wait 1 minute
@@ -540,6 +535,10 @@ export class Project {
                 break;
             }
 
+            // Check host
+            if (await this.checkHost()) {
+                break;
+            }
             try {
                 // Upload
                 this.uploading = true;
@@ -558,6 +557,35 @@ export class Project {
             }
         }
     }
+
+
+    /**
+     * @brief Check if this user is the host on Google Drive, disconnect if it is not
+     * @returns Wether or not the update loop must be stopped
+    **/
+    private async checkHost() : Promise<boolean> {
+        let currentUrl;
+        let driveUrl;
+        try {
+            currentUrl = LiveShare.instance!.sessionUrl;
+            driveUrl = (await GoogleDrive.instance!.getState(this.project)).url;
+        }
+        catch (error: any) {
+            logError(error.message);
+            return false;
+        }
+
+        if (currentUrl !== driveUrl) {
+            logError(`Another user is the host for this project\n${currentUrl} != ${driveUrl}`);
+            await Project._disconnect(this);
+            await Project.connect();
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
 
     /**
      * @brief Stop uploading files regularly to Google Drive
