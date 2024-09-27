@@ -2,15 +2,16 @@ import { CancellationToken, FileDecoration, FileDecorationProvider, ThemeColor, 
 import { collaborationName, currentRecurListFolder, currentUri } from "./util";
 import { match } from "./FileRules";
 import { Project } from "./Project";
+import { FilesConfig } from "./FileSystem";
 
-
-let staticRules: Array<string> = new Array<string>();
-let ignoreRules: Array<string> = new Array<string>();
 
 export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
 
     private static _instance: IgnoreStaticDecorationProvider | undefined = undefined;
     public static get instance() { return IgnoreStaticDecorationProvider._instance; }
+
+    private staticRules: string[] = [];
+    private ignoreRules: string[] = [];
 
     constructor() {
         if (IgnoreStaticDecorationProvider.instance) {
@@ -22,39 +23,33 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
     private _onDidChangeFileDecorations: EventEmitter<Uri[]> = new EventEmitter<Uri[]>();
     public readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeFileDecorations.event;
 
+
     public provideFileDecoration(uri: Uri, _token: CancellationToken): FileDecoration | undefined {
         // Remove .collab64 at the end of the file name if it exists
-        const fileUri = uri.with({ path: uri.path.replace(".collab64", '') });
+        const fileUri = uri.with({ path: uri.path.replace(".collab64", "") });
 
         // Get file name
-        const fileName = fileUri.path.split('/').pop();
-        
+        const name = collaborationName(fileUri);
 
         // .collablaunch and .collabconfig files
-        if (fileName === '.collablaunch' || fileName === '.collabconfig') {
+        if (name === ".collablaunch" || name === ".collabconfig") {
             return {
                 color: new ThemeColor("cloudCollaboration.special"),
             };
         }
-
 
         // If the project is not connected, return undefined
         if (!Project.instance) {
             return undefined;
         }
 
-
         // Ignore and static files
-        // Get the filename compatible with the functions to check if it is a static or ignore file
-        const collaborationFileName = collaborationName(fileUri);
-        
-        // Check if the file is a static or ignore file
-        if (match(collaborationFileName, ignoreRules) || collaborationFileName === "") {
+        if (name === "" || match(name, this.ignoreRules)) {
             return {
                 color: new ThemeColor("cloudCollaboration.ignore"),
             };
         }
-        if (match(collaborationFileName, staticRules)) {
+        if (match(name, this.staticRules)) {
             return {
                 color: new ThemeColor("cloudCollaboration.static"),
             };
@@ -67,16 +62,11 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
     /**
      * @brief Update the decorations of all files
     **/
-    public async update() {
+    public async update(filesConfig: FilesConfig) {
         // Get the static and ignore rules
-        if (!Project.instance) {
-            throw new Error("File decoration failed : not connected");
-        }
-        staticRules = Project.instance.config.filesConfig.staticRules;
-        ignoreRules = Project.instance.config.filesConfig.ignoreRules;
+        this.staticRules = filesConfig.staticRules;
+        this.ignoreRules = filesConfig.ignoreRules;
 
-
-        // Update the decorations
         // Get all names
         const names = await currentRecurListFolder();
         
@@ -84,4 +74,5 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
         const uris = names.map(name => currentUri(name));
         this._onDidChangeFileDecorations.fire(uris);
     }
+    
 }

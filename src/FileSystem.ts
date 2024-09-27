@@ -17,10 +17,12 @@ export class FileSystem {
     private binaryFiles : Set<string> = new Set<string>(); // Name of all binary files
     private createdFiles : Set<string> = new Set<string>(); // Name of the files that were just created by the user
     private backupCount : number = -1;
+    private synchronizing : boolean = false;
+    private onUpdateConfig: () => void | Promise<void> = () => {};
     private syncDisposables : vscode.Disposable[] = [];
     
     private constructor(
-        private state: ProjectState, 
+        private state: ProjectState,
         private driveProject: DriveProject,
         private storageProject: StorageProject,
         private _storageFolder: vscode.Uri,
@@ -31,13 +33,13 @@ export class FileSystem {
     public get projectFolder() : vscode.Uri { return this._projectFolder; }
     public get backupPath() : string { return this.storageUri("Backups").fsPath; }
 
-    public static copy(fileSystem: FileSystem) : FileSystem {
+    public static copy(fileSystem: FileSystem, state: ProjectState) : FileSystem {
         return new FileSystem(
-            fileSystem.state,
+            state,
             fileSystem.driveProject,
             fileSystem.storageProject,
-            vscode.Uri.parse(fileSystem.storageFolder.path),
-            vscode.Uri.parse(fileSystem.projectFolder.path)
+            vscode.Uri.parse(fileSystem._storageFolder.path),
+            vscode.Uri.parse(fileSystem._projectFolder.path)
         );
     }
 
@@ -341,7 +343,11 @@ export class FileSystem {
      * @brief Start synchronization between the collaboration folder and the project folder
      * @param host Wether or not the current user is the host of the Live Share session
     **/
-    public async startSync(host: boolean) : Promise<void> {
+    public async startSync(host: boolean, onUpdateConfig: () => void | Promise<void> = () => {}) : Promise<void> {
+        if (this.synchronizing) {
+            throw new Error("Already synchronizing");
+        }
+
         // Copy files from the collaboration folder to the project folder
         if (!host) {
             await vscode.workspace.fs.writeFile(this.storageUri("garbageMarker"), new Uint8Array());
@@ -361,48 +367,52 @@ export class FileSystem {
         }
 
         // Listen to file modification events (collaboration folder -> project folder)
+        const collaborationModified = showErrorWrap(this.collaborationFileModified.bind(this, false));
+        const collaborationCreated = showErrorWrap(this.collaborationFileModified.bind(this, true));
         const collaborationWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(collaborationFolder, "**"));
-        this.syncDisposables.push(collaborationWatcher.onDidCreate(showErrorWrap(this.collaborationFileModified.bind(this, true))));
-        this.syncDisposables.push(collaborationWatcher.onDidDelete(showErrorWrap(this.collaborationFileModified.bind(this, false))));
-        this.syncDisposables.push(collaborationWatcher.onDidChange(showErrorWrap(this.collaborationFileModified.bind(this, false))));
+        this.syncDisposables.push(collaborationWatcher.onDidCreate(collaborationCreated));
+        this.syncDisposables.push(collaborationWatcher.onDidDelete(collaborationModified));
+        this.syncDisposables.push(collaborationWatcher.onDidChange(collaborationModified));
         this.syncDisposables.push(collaborationWatcher);
         if (!host) { // Double listening because some events are not triggered in some situations in Live Share
-            this.syncDisposables.push(vscode.workspace.onDidCreateFiles(showErrorWrap((event: vscode.FileCreateEvent) => {
+            this.syncDisposables.push(vscode.workspace.onDidCreateFiles(event => {
                 for (const uri of event.files) {
                     if (uri.path.startsWith(collaborationFolder.path)) {
-                        this.collaborationFileModified(true, uri);
+                        collaborationCreated(uri);
                     }
                 }
-            })));
-            this.syncDisposables.push(vscode.workspace.onDidDeleteFiles(showErrorWrap((event: vscode.FileDeleteEvent) => {
+            }));
+            this.syncDisposables.push(vscode.workspace.onDidDeleteFiles(event => {
                 for (const uri of event.files) {
                     if (uri.path.startsWith(collaborationFolder.path)) {
-                        this.collaborationFileModified(false, uri);
+                        collaborationModified(uri);
                     }
                 }
-            })));
-            this.syncDisposables.push(vscode.workspace.onDidSaveTextDocument(showErrorWrap((document: vscode.TextDocument) => {
+            }));
+            this.syncDisposables.push(vscode.workspace.onDidSaveTextDocument(document => {
                 if (document.uri.path.startsWith(collaborationFolder.path)) {
-                    this.collaborationFileModified(false, document.uri);
+                    collaborationModified(document.uri);
                 }
-            })));
-            this.syncDisposables.push(vscode.workspace.onDidRenameFiles(showErrorWrap((event: vscode.FileRenameEvent) => {
+            }));
+            this.syncDisposables.push(vscode.workspace.onDidRenameFiles(event => {
                 for (const uri of event.files) {
                     if (uri.oldUri.path.startsWith(collaborationFolder.path)) {
-                        this.collaborationFileModified(false, uri.oldUri);
+                        collaborationModified(uri.oldUri);
                     }
                     if (uri.newUri.path.startsWith(collaborationFolder.path)) {
-                        this.collaborationFileModified(true, uri.newUri);
+                        collaborationCreated(uri.newUri);
                     }
                 }
-            })));
+            }));
         }
 
         // Listen to file modification events (project folder -> collaboration folder)
+        const projectModified = showErrorWrap(this.projectFileModified.bind(this, false));
+        const projectCreated = showErrorWrap(this.projectFileModified.bind(this, true));
         const projectWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this.projectFolder, "**"));
-        this.syncDisposables.push(projectWatcher.onDidCreate(showErrorWrap(this.projectFileModified.bind(this, true))));
-        this.syncDisposables.push(projectWatcher.onDidDelete(showErrorWrap(this.projectFileModified.bind(this, false))));
-        this.syncDisposables.push(projectWatcher.onDidChange(showErrorWrap(this.projectFileModified.bind(this, false))));
+        this.syncDisposables.push(projectWatcher.onDidCreate(projectCreated));
+        this.syncDisposables.push(projectWatcher.onDidDelete(projectModified));
+        this.syncDisposables.push(projectWatcher.onDidChange(projectModified));
         this.syncDisposables.push(projectWatcher);
 
         // Auto-save modifications made by the extension in the collaboration folder
@@ -411,10 +421,10 @@ export class FileSystem {
                 const name = this.toProjectName(collaborationName(event.document.uri));
                 const state = this.files.get(name);
                 if (state && state.autoSave) {
-                    log("Save");
+                    log("Save " + name);
                     setTimeout(async () => {
                         await event.document.save();
-                        log("Saved");
+                        log("Saved " + name);
                         if (state.saveResolve) {
                             state.saveResolve();
                             state.saveResolve = null;
@@ -430,6 +440,9 @@ export class FileSystem {
                 this.createdFiles.add(collaborationName(file));
             }
         })));
+
+        this.synchronizing = true;
+        this.onUpdateConfig = onUpdateConfig;
     }
 
 
@@ -439,8 +452,6 @@ export class FileSystem {
      * @param uri Uri of the file
     **/
     private async collaborationFileModified(create: boolean, uri: vscode.Uri) : Promise<void> {
-        log("Collaboration modified");
-
         // Get file state
         const collabName = collaborationName(uri);
         const projectName = this.toProjectName(collabName);
@@ -449,14 +460,15 @@ export class FileSystem {
             state = new FileState();
             this.files.set(projectName, state);
         }
+        log("Collaboration modified " + projectName);
 
         // Check if already modifying
         if (state.projectModifying) {
-            log("Project modifying");
+            log("Project modifying " + projectName);
             return;
         }
         if (state.collaborationModifying) {
-            log("Collaboration already modifying");
+            log("Collaboration already modifying " + projectName);
             state.continue = true;
             return;
         }
@@ -476,16 +488,16 @@ export class FileSystem {
             try {
                 const stat = await vscode.workspace.fs.stat(uri);
                 if (stat.type === vscode.FileType.File) {
-                    log("File");
+                    log("File " + projectName);
                     content = await vscode.workspace.fs.readFile(uri);
                     if (collabName.endsWith(".collab64")) { // Binary file -> decode base64
                         content = fromBase64(new TextDecoder().decode(content));
                     }
-                    log("Content " + content.length);
+                    log("Content " + content.length + " " + projectName);
                     directory = false;
                 }
                 else if (stat.type === vscode.FileType.Directory) {
-                    log("Directory");
+                    log("Directory " + projectName);
                     content = undefined;
                     directory = true;
                 }
@@ -494,7 +506,7 @@ export class FileSystem {
                 }
             }
             catch { // File was deleted
-                log("Deleted");
+                log("Deleted " + projectName);
                 content = null;
                 directory = false;
             }
@@ -504,11 +516,11 @@ export class FileSystem {
                 state.content = content;
                 if (content) {
                     if (directory) {
-                        log("Create project directory");
+                        log("Create project directory " + projectName);
                         await vscode.workspace.fs.createDirectory(this.projectUri(projectName));
                     }
                     else {
-                        log("Create/modify project file");
+                        log("Create/modify project file " + projectName);
                         if (create) {
                             create = false;
                             if (collabName.endsWith(".collab64")) { // Binary file -> add to binary files
@@ -529,16 +541,19 @@ export class FileSystem {
                             }
                         }
                         await vscode.workspace.fs.writeFile(this.projectUri(projectName), content);
+                        if (projectName.endsWith(".collabconfig")) {
+                            this.onUpdateConfig();
+                        }
                     }
                 }
                 else {
-                    log("Delete project file/directory");
+                    log("Delete project file/directory " + projectName);
                     await vscode.workspace.fs.delete(this.projectUri(projectName), { recursive: true });
                     this.binaryFiles.delete(projectName);
                 }
             }
             else {
-                log("Not modified");
+                log("Not modified " + projectName);
             }
 
         } while (state.continue);
@@ -548,7 +563,7 @@ export class FileSystem {
         if (state.content) {
             this.filesContent.set(projectName, new FileContent(state.content, true));
         }
-        log("End collaboration modified");
+        log("End collaboration modified " + projectName);
     }
 
 
@@ -558,8 +573,6 @@ export class FileSystem {
      * @param uri Uri of the file
     **/
     private async projectFileModified(create: boolean, uri: vscode.Uri) : Promise<void> {
-        log("Project modified");
-
         // Get file state
         const projectName = this.projectName(uri);
         let collabName = this.toCollabName(projectName);
@@ -568,14 +581,15 @@ export class FileSystem {
             state = new FileState();
             this.files.set(projectName, state);
         }
+        log("Project modified " + projectName);
 
         // Check if already modifying
         if (state.collaborationModifying) {
-            log("Collaboration modifying");
+            log("Collaboration modifying " + projectName);
             return;
         }
         if (state.projectModifying) {
-            log("Project already modifying");
+            log("Project already modifying " + projectName);
             state.continue = true;
             return;
         }
@@ -592,13 +606,13 @@ export class FileSystem {
             try {
                 const stat = await vscode.workspace.fs.stat(uri);
                 if (stat.type === vscode.FileType.File) {
-                    log("File");
+                    log("File " + projectName);
                     content = await vscode.workspace.fs.readFile(uri);
-                    log("Content " + content.length);
+                    log("Content " + content.length + " " + projectName);
                     directory = false;
                 }
                 else if (stat.type === vscode.FileType.Directory) {
-                    log("Directory");
+                    log("Directory " + projectName);
                     content = undefined;
                     directory = true;
                 }
@@ -607,7 +621,7 @@ export class FileSystem {
                 }
             }
             catch { // File was deleted
-                log("Deleted");
+                log("Deleted " + projectName);
                 content = null;
                 directory = false;
             }
@@ -616,14 +630,14 @@ export class FileSystem {
             if (this.wasModified(state.content, content)) {
                 if (content) {
                     if (directory) {
-                        log("Create collaboration directory");
+                        log("Create collaboration directory " + projectName);
                         state.content = content;
                         await vscode.workspace.fs.createDirectory(collaborationUri(collabName));
                     }
                     else {
                         if (!collabName.endsWith(".collab64") && isBinary(content)) { // Binary file -> add to binary files and rename
                             this.binaryFiles.add(projectName);
-                            log("Delete collaboration file/directory");
+                            log("Delete collaboration file/directory " + projectName);
                             const edit = new vscode.WorkspaceEdit();
                             edit.deleteFile(collaborationUri(collabName), { recursive: true });
                             await vscode.workspace.applyEdit(edit);
@@ -631,7 +645,7 @@ export class FileSystem {
                             create = true;
                         }
                         if (create) {
-                            log("Create collaboration file");
+                            log("Create collaboration file " + projectName);
                             create = false;
                             state.content = new Uint8Array();
                             state.continue = true;
@@ -640,7 +654,7 @@ export class FileSystem {
                             await vscode.workspace.applyEdit(edit);
                         }
                         else {
-                            log("Modify collaboration file");
+                            log("Modify collaboration file " + projectName);
                             state.content = content;
                             const str = collabName.endsWith(".collab64") ? toBase64(content) : new TextDecoder().decode(content);
                             if (!saveEdit) {
@@ -651,7 +665,7 @@ export class FileSystem {
                     }
                 }
                 else {
-                    log("Delete collaboration file/directory");
+                    log("Delete collaboration file/directory " + projectName);
                     state.content = content;
                     const edit = new vscode.WorkspaceEdit();
                     edit.deleteFile(collaborationUri(collabName), { recursive: true });
@@ -660,12 +674,15 @@ export class FileSystem {
                 }
             }
             else {
-                log("Not modified");
+                log("Not modified " + projectName);
             }
 
         } while (state.continue);
         if (saveEdit) {
             await this.applyEditAndSave(saveEdit, state);
+            if (projectName.endsWith(".collabconfig")) {
+                this.onUpdateConfig();
+            }
         }
 
         state.projectModifying = false;
@@ -673,7 +690,7 @@ export class FileSystem {
         if (state.content) {
             this.filesContent.set(projectName, new FileContent(state.content, true));
         }
-        log("End project modified");
+        log("End project modified " + projectName);
     }
 
 
@@ -699,6 +716,8 @@ export class FileSystem {
         for (const disposable of this.syncDisposables) {
             disposable.dispose();
         }
+        this.synchronizing = false;
+        this.syncDisposables = [];
     }
 
 

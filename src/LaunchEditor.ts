@@ -1,8 +1,8 @@
-import * as vscode from 'vscode';
-import { DriveProject } from './GoogleDrive';
-import { randomString, showErrorWrap } from './util';
-import { Project } from './Project';
-import { context } from './extension';
+import * as vscode from "vscode";
+import { DriveProject } from "./GoogleDrive";
+import { randomString, showErrorWrap } from "./util";
+import { Project } from "./Project";
+import { context } from "./extension";
 
 
 export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
@@ -30,17 +30,17 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
         // Receive message from the webview.
         webviewPanel.webview.onDidReceiveMessage(showErrorWrap(async e => {
             switch (e.type) {
-                case 'openFolder':
+                case "openFolder":
                     this.openFolder(documentFolder);
                     return;
 
-                case 'connect':
+                case "connect":
                     await Project.connect();
                     // Update the webview
                     //webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.Instance !== undefined);
                     return;
                 
-                case 'disconnect':
+                case "disconnect":
                     await Project.disconnect();
                     // Update the webview
                     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined, Project.connecting);
@@ -62,85 +62,76 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
         // Create the html button depending on inSubFolder
         let button;
         if (connected) {
-            button = /* html */`
-                <button id="disconnect">Disconnect</button>
-            `;
+            button = `<button id="disconnect">Disconnect</button>`;
         } else {
             if (inSubFolder) {
-                button = /* html */`
-                    <button id="openfolder">Open Folder</button>
-                `;
+                button = `<button id="openfolder">Open Folder</button>`;
             }
             else {
-                button = /* html */`
-                    <button id="connect">Connect</button>
-                `;
+                button = `<button id="connect">Connect</button>`;
             }
         }
         
 
         // Get file paths
-        const styleVsCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'launchEditor.css'));
+        const styleVsCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "media", "launchEditor.css"));
 
         // Use a nonce to whitelist which scripts can be run
         const nonce = randomString(32);
 
-        // Please for the sake of your mental health don't look at the hmtl code below :)
-        return /* html */`
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                
-                <link href="${styleVsCodeUri}" rel="stylesheet" />
-                
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <link href="${styleVsCodeUri}" rel="stylesheet" />
+    
 
-                <title>${name}</title>
-            </head>
-            <body>
-                <h1>${name}</h1>
-                ${button}
-                
-                <script nonce="${nonce}">
-                    const vscode = acquireVsCodeApi();
+    <title>${name}</title>
+</head>
+<body>
+    <h1>${name}</h1>
+    ${button}
+    
+    <script nonce="${nonce}">
+        const vscode = acquireVsCodeApi();
 
-                    function connect() {
-                        document.body.innerHTML = '<h1>${name}</h1>\\n<h2>Connecting...</h2>';
-                        vscode.postMessage({ type: 'connect' });
-                    }
+        function connect() {
+            document.body.innerHTML = '<h1>${name}</h1>\\n<h2>Connecting...</h2>';
+            vscode.postMessage({ type: 'connect' });
+        }
 
-                    function disconnect() {
-                        document.body.innerHTML = '<h1>${name}</h1>\\n<h2>Disconnecting...</h2>';
-                        vscode.postMessage({ type: 'disconnect' });
-                    }
+        function disconnect() {
+            document.body.innerHTML = '<h1>${name}</h1>\\n<h2>Disconnecting...</h2>';
+            vscode.postMessage({ type: 'disconnect' });
+        }
 
-                    function openFolder() {
-                        document.body.innerHTML = '<h1>Opening Folder...</h1>';
-                        vscode.postMessage({ type: 'openFolder' });
-                    }
+        function openFolder() {
+            document.body.innerHTML = '<h1>Opening Folder...</h1>';
+            vscode.postMessage({ type: 'openFolder' });
+        }
 
-                    if (${connecting}) {
-                        document.body.innerHTML = '<h1>${name}</h1>\\n<h2>Connecting...</h2>';
-                    }
-                    else {
-                        if (${connected}) {
-                            document.getElementById('disconnect').addEventListener('click', disconnect);
-                        }
-                        else {
-                            if (${inSubFolder}) {
-                                document.getElementById('openfolder').addEventListener('click', openFolder);
-                            } else {
-                                document.getElementById('connect').addEventListener('click', connect);
-                            }
-                        }
-                    }
+        if (${connecting}) {
+            document.body.innerHTML = '<h1>${name}</h1>\\n<h2>Connecting...</h2>';
+        }
+        else {
+            if (${connected}) {
+                document.getElementById('disconnect').addEventListener('click', disconnect);
+            }
+            else {
+                if (${inSubFolder}) {
+                    document.getElementById('openfolder').addEventListener('click', openFolder);
+                } else {
+                    document.getElementById('connect').addEventListener('click', connect);
+                }
+            }
+        }
 
-                    
-                </script>
-            </body>
-        `;
+        
+    </script>
+</body>`;
     }
 
 
@@ -149,6 +140,6 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
      * @param folder The folder to open
     **/
     private openFolder(folder: vscode.Uri) : void {
-        vscode.commands.executeCommand('vscode.openFolder', folder);
+        vscode.commands.executeCommand("vscode.openFolder", folder);
     }
 }

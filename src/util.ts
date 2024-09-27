@@ -131,14 +131,13 @@ export async function collaborationRecurListFolder(listType: vscode.FileType = v
  * @param action Function to wrap
  * @returns Wrapped function
 **/
-export function showErrorWrap(action: ((...args: any) => any)) : (...args: any) => Promise<void> {
+export function showErrorWrap(action: ((...args: any) => void | Promise<void>)) : (...args: any) => Promise<void> {
     return async (...args) => {
         try {
             await action(...args);
         }
         catch (error : any) {
-            vscode.window.showErrorMessage(error.message);
-            console.error(error);
+            logError(error.message);
         }
     };
 }
@@ -165,7 +164,20 @@ export async function waitFor(condition: () => boolean, interval: number = 100) 
 }
 
 
+/**
+ * @brief Log a message to the console and the output channel
+**/
 export function log(message: string) {
     output.appendLine(message);
     console.log(`[${new Date().toLocaleString()}] ${message}`);
+}
+
+
+/**
+ * @brief Show an error message to the user and log it to the console and the output channel
+**/
+export function logError(message: string) {output.appendLine(message);
+    vscode.window.showErrorMessage(message);
+    output.error(message);
+    console.error(new Error(`[${new Date().toLocaleString()}] ${message}`));
 }

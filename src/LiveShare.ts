@@ -11,8 +11,8 @@ export class LiveShare {
     private liveShare : vlsl.LiveShare;
     private sessionId : string | null = null;
     private userIndex : number = 0;
-    private _onIndexChanged : (userIndex: number) => any = () => {};
-    private _onSessionEnd : () => any = () => {};
+    private _onIndexChanged : (userIndex: number) => void | Promise<void> = () => {};
+    private _onSessionEnd : () => void | Promise<void> = () => {};
     private disposables : vscode.Disposable[] = [];
 
     private constructor(liveShare: vlsl.LiveShare) {
@@ -33,7 +33,7 @@ export class LiveShare {
      * Register a callback to be called when the user index changes.
      * Indices are always consecutive and start at 0 for the host.
     **/
-    public set onIndexChanged(onIndexChanged: (index: number) => any) {
+    public set onIndexChanged(onIndexChanged: (index: number) => void | Promise<void>) {
         this._onIndexChanged = onIndexChanged;
         onIndexChanged(this.userIndex);
     };
@@ -42,7 +42,7 @@ export class LiveShare {
     /**
      * @brief Register a callback to be called when the session ends
     **/
-    public set onSessionEnd(onSessionEnd: () => any) {
+    public set onSessionEnd(onSessionEnd: () => void | Promise<void>) {
         this._onSessionEnd = onSessionEnd;
     }
 

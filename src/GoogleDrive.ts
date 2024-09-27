@@ -140,7 +140,7 @@ export class GoogleDrive {
      * @brief Prompt the user to pick a Google Drive folder containing a project and authorize the extension to access it
      * @param callback Callback that will be called with the project if a project is picked successfully
     **/
-    public async pickProject(callback: (project: DriveProject) => any ) : Promise<void> {
+    public async pickProject(callback: (project: DriveProject) => void | Promise<void> ) : Promise<void> {
         let result = "";
         GoogleDrive.server?.close();
         GoogleDrive.server = createServer(showErrorWrap(async (request: IncomingMessage, response: ServerResponse<IncomingMessage>) => {
