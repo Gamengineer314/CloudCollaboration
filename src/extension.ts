@@ -21,7 +21,7 @@ export async function activate(_context: vscode.ExtensionContext) {
 	context = _context;
     if (vscode.workspace.workspaceFolders) {
         currentFolder = vscode.workspace.workspaceFolders?.[0].uri;
-        collaborationFolder = vscode.Uri.joinPath(currentFolder, "Cloud Collaboration");
+        collaborationFolder = vscode.Uri.joinPath(currentFolder, "Project");
     }
     output = vscode.window.createOutputChannel("Cloud Collaboration", { log: true });
 

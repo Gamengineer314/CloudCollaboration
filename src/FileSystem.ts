@@ -23,11 +23,12 @@ export class FileSystem {
         private state: ProjectState, 
         private driveProject: DriveProject,
         private storageProject: StorageProject,
-        private storageFolder: vscode.Uri,
-        private projectFolder: vscode.Uri
+        private _storageFolder: vscode.Uri,
+        private _projectFolder: vscode.Uri
     ) {}
 
-    public get projectPath() : string { return this.projectFolder.fsPath; }
+    public get storageFolder() : vscode.Uri { return this._storageFolder; }
+    public get projectFolder() : vscode.Uri { return this._projectFolder; }
     public get backupPath() : string { return this.storageUri("Backups").fsPath; }
 
     public static copy(fileSystem: FileSystem) : FileSystem {

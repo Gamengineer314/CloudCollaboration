@@ -5,7 +5,7 @@ import { Project } from "./Project";
 export class ProjectProfileProvider implements TerminalProfileProvider {
     public provideTerminalProfile(): ProviderResult<TerminalProfile> {
         return new TerminalProfile({
-            cwd: Project.instance?.projectPath,
+            cwd: Project.instance?.projectFolder.fsPath,
         });
     }
 }

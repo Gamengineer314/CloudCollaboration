@@ -5,6 +5,7 @@ import { FileSystem, FilesConfig } from "./FileSystem";
 import { collaborationFolder, context, currentFolder } from "./extension";
 import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, sleep, waitFor, collaborationName, log } from "./util";
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
+import { Addon, addons } from "./Addons/Addon";
 
 
 const hostDefaultSettings = `{
@@ -14,6 +15,7 @@ const hostDefaultSettings = `{
     "terminal.integrated.defaultProfile.windows": "Cloud Collaboration",
     "terminal.integrated.defaultProfile.osx": "Cloud Collaboration"
 }`;
+
 const guestDefaultSettings = {
     "terminal.integrated.defaultProfile.linux": "Cloud Collaboration",
     "terminal.integrated.defaultProfile.windows": "Cloud Collaboration",
@@ -29,6 +31,7 @@ export class Project {
     public static get connecting() : boolean { return Project._connecting; }
 
     private _config : Config;
+    private addon : Addon | undefined = undefined;
     private uploading : boolean = false;
     private mustUpload : boolean | undefined = undefined;
     private static clearingGarbage : boolean = false;
@@ -39,12 +42,13 @@ export class Project {
         private state: ProjectState,
         private fileSystem: FileSystem
     ) {
-        this._config = new Config(project.name, new FilesConfig(), new ShareConfig(""));
+        this._config = new Config(project.name, new FilesConfig(), new ShareConfig(""), "");
     }
 
     public get driveProject() : DriveProject { return this.project; }
     public get config() : Config { return this._config; }
-    public get projectPath() : string { return this.fileSystem.projectPath; }
+    public get storageFolder() : vscode.Uri { return this.fileSystem.storageFolder; }
+    public get projectFolder() : vscode.Uri { return this.fileSystem.projectFolder; }
     public get backupPath() : string { return this.fileSystem.backupPath; }
 
 
@@ -139,6 +143,9 @@ export class Project {
                 await Project.instance.fileSystem.upload(Project.instance.config.filesConfig, true, true);
             }
         }
+        if (Project.instance) {
+            Project.instance.addon?.deactivate();
+        }
     }
 
 
@@ -173,9 +180,8 @@ export class Project {
             // Default files
             await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
             await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
-            await vscode.workspace.fs.createDirectory(collaborationFolder);
             await vscode.workspace.fs.createDirectory(currentUri(".vscode"));
-            await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(hostDefaultSettings));
+            await vscode.workspace.fs.writeFile(fileUri("settings.json", currentUri(".vscode")), new TextEncoder().encode(hostDefaultSettings));
             vscode.window.showInformationMessage("Project created successfully");
         }));
     }
@@ -203,7 +209,6 @@ export class Project {
             // Default files
             await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
             await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
-            await vscode.workspace.fs.createDirectory(collaborationFolder);
             await vscode.workspace.fs.createDirectory(currentUri(".vscode"));
             await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(hostDefaultSettings));
             vscode.window.showInformationMessage("Project joined successfully");
@@ -301,6 +306,7 @@ export class Project {
     private static async _hostConnect(instance: Project) : Promise<void> {
         // Connect
         await LiveShare.activate();
+        await vscode.workspace.fs.createDirectory(collaborationFolder);
         await instance.fileSystem.download();
         await LiveShare.instance!.createSession();
         instance.state.url = LiveShare.instance!.sessionUrl!;
@@ -311,7 +317,9 @@ export class Project {
                 instance.startUpload();
             }
         }, 5_000);
-        await instance.updateConfig();
+        await instance.updateConfig(true);
+        instance.addon = addons.get(instance.config.addon);
+        instance.addon?.activate();
         Project._instance = instance;
         LiveShare.instance!.onSessionEnd = showErrorWrap(async () => await Project.disconnect());
 
@@ -362,7 +370,9 @@ export class Project {
 
         // Connect
         await instance.fileSystem.startSync(false);
-        await instance.updateConfig();
+        await instance.updateConfig(true);
+        instance.addon = addons.get(instance.config.addon);
+        instance.addon?.activate();
         Project._instance = instance;
         context.globalState.update("projectState", undefined);
 
@@ -613,7 +623,7 @@ export class Project {
      * @brief Open a terminal in the folder with a copy of the project
     **/
     public async newTerminal() : Promise<void> {
-        await vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: this.fileSystem.projectPath });
+        await vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: this.fileSystem.projectFolder.fsPath });
     }
 
 
@@ -652,17 +662,33 @@ export class Project {
 
     /**
      * @brief Update config from the .collabconfig file if it exists, create a default one otherwise
+     * @param first Wether or not it is the first time the config is updated
     **/
-    public async updateConfig() : Promise<void> {
+    public async updateConfig(first: boolean = false) : Promise<void> {
+        const previousAddon = this.config.addon;
         try {
             this._config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(collaborationUri(".collabconfig")))) as Config;
         }
         catch {
             log("Create config");
             const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
-            this._config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.instance!.getEmail()));
+            this._config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.instance!.getEmail()), "Unspecified");
             await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
             vscode.window.showInformationMessage("Project configuration file created");
+        }
+
+        if (!first && this.config.addon !== previousAddon) { // Addon changed
+            this.addon?.deactivate();
+            this.addon = addons.get(this.config.addon);
+            log("Addon changed " + this.config.addon);
+            if (this.addon) {
+                this.addon.activate();
+                const settings = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri("settings.json", currentUri(".vscode")))));
+                this.addon.modifyConfig(this.config);
+                this.addon.modifySettings(settings);
+                await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
+                await vscode.workspace.fs.writeFile(fileUri("settings.json", currentUri(".vscode")), new TextEncoder().encode(JSON.stringify(settings, null, 4)));
+            }
         }
     }
 
@@ -674,7 +700,8 @@ export class Config {
     public constructor(
         public name: string, 
         public filesConfig: FilesConfig,
-        public shareConfig: ShareConfig
+        public shareConfig: ShareConfig,
+        public addon: string
     ) {}
 }
 
