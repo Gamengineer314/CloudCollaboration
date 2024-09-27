@@ -124,7 +124,17 @@ export class Project {
         // Clear remaining files
         if (currentFolder) {
             Project.clearingGarbage = true;
-            FileSystem.clearGarbage().then(() => Project.clearingGarbage = false);
+            (async () => {
+                try {
+                    await FileSystem.clearGarbage();
+                }
+                catch (error: any) {
+                    logError(error.message);
+                }
+                finally {
+                    Project.clearingGarbage = false;
+                }
+            })();
         }
     }
 
@@ -178,6 +188,7 @@ export class Project {
             await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
             await vscode.workspace.fs.createDirectory(currentUri(".vscode"));
             await vscode.workspace.fs.writeFile(fileUri("settings.json", currentUri(".vscode")), new TextEncoder().encode(hostDefaultSettings));
+            await vscode.workspace.fs.createDirectory(collaborationFolder);
             vscode.window.showInformationMessage("Project created successfully");
         }));
     }
@@ -207,6 +218,7 @@ export class Project {
             await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
             await vscode.workspace.fs.createDirectory(currentUri(".vscode"));
             await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(hostDefaultSettings));
+            await vscode.workspace.fs.createDirectory(collaborationFolder);
             vscode.window.showInformationMessage("Project joined successfully");
         });
     }
@@ -300,7 +312,6 @@ export class Project {
     private static async _hostConnect(instance: Project) : Promise<void> {
         // Connect
         await LiveShare.activate();
-        await vscode.workspace.fs.createDirectory(collaborationFolder);
         await instance.fileSystem.download();
         await LiveShare.instance!.createSession();
         instance.state.url = LiveShare.instance!.sessionUrl!;
