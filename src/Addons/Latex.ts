@@ -31,8 +31,20 @@ export class LatexAddon implements Addon {
     }
 
 
-    public modifySettings(settings: any) : void {
-        // Custom recipe for building in project folder
+    public modifySettings(config: Config, settings: any) : void {
+        // Default ignore and static rules
+        for (const rule of defaultIgnoreRules) {
+            if (!config.filesConfig.ignoreRules.includes(rule)) {
+                config.filesConfig.ignoreRules.push(rule);
+            }
+        }
+        for (const rule of defaultStaticRules) {
+            if (!config.filesConfig.staticRules.includes(rule)) {
+                config.filesConfig.staticRules.push(rule);
+            }
+        }
+
+        // Custom recipe settings for building in project folder
         if (Array.isArray(settings["latex-workshop.latex.recipes"])) {
             settings["latex-workshop.latex.recipes"] = settings["latex-workshop.latex.recipes"].filter(
                 recipe => recipe.name !== "cloud-collaboration"
@@ -75,19 +87,20 @@ export class LatexAddon implements Addon {
         vscode.workspace.fs.createDirectory(fileUri("out", Project.instance!.projectFolder));
     }
 
-    
-    public modifyConfig(config: Config) : void {
-        // Default ignore and static rules
-        for (const rule of defaultIgnoreRules) {
-            if (!config.filesConfig.ignoreRules.includes(rule)) {
-                config.filesConfig.ignoreRules.push(rule);
-            }
+
+    public cancelSettings(_config: Config, settings: any): void {
+        // Remove custom recipe settings
+        if (Array.isArray(settings["latex-workshop.latex.recipes"])) {
+            settings["latex-workshop.latex.recipes"] = settings["latex-workshop.latex.recipes"].filter(
+                recipe => recipe.name !== "cloud-collaboration"
+            );
         }
-        for (const rule of defaultStaticRules) {
-            if (!config.filesConfig.staticRules.includes(rule)) {
-                config.filesConfig.staticRules.push(rule);
-            }
+        if (Array.isArray(settings["latex-workshop.latex.tools"])) {
+            settings["latex-workshop.latex.tools"] = settings["latex-workshop.latex.tools"].filter(
+                tool => tool.name !== "cloud-collaboration"
+            );
         }
+        delete settings["latex-workshop.latex.outDir"];
     }
 
 

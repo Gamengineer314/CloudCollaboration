@@ -8,7 +8,7 @@ import { context } from "./extension";
 export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Called when our custom editor is opened.
-    public async resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, _token: vscode.CancellationToken) : Promise<void> {
+    public async resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel) : Promise<void> {
         // Get the json from the opened .collablaunch file
         const project = JSON.parse(document.getText()) as DriveProject;
 

@@ -23,7 +23,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 
 
     // Called when our custom editor is opened.
-    public async resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, _token: vscode.CancellationToken) : Promise<void> {
+    public async resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel) : Promise<void> {
         // Check uri and project instance
         if (this.uri.path === "/") {
             this.uri = document.uri;

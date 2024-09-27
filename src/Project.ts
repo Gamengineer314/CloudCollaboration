@@ -719,16 +719,25 @@ export class Project {
 
         // Update addon
         if (!first && this.config.addon !== previousAddon) {
-            this.addon?.deactivate();
+            if (this.addon) {
+                this.addon.deactivate();
+                if (this.host) {
+                    const settings = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri("settings.json", currentUri(".vscode")))));
+                    this.addon.cancelSettings(this.config, settings);
+                    await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
+                    await vscode.workspace.fs.writeFile(fileUri("settings.json", currentUri(".vscode")), new TextEncoder().encode(JSON.stringify(settings, null, 4)));
+                }
+            }
             this.addon = addons.get(this.config.addon);
             log("Addon changed " + this.config.addon);
             if (this.addon) {
                 this.addon.activate();
-                const settings = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri("settings.json", currentUri(".vscode")))));
-                this.addon.modifyConfig(this.config);
-                this.addon.modifySettings(settings);
-                await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
-                await vscode.workspace.fs.writeFile(fileUri("settings.json", currentUri(".vscode")), new TextEncoder().encode(JSON.stringify(settings, null, 4)));
+                if (this.host) {
+                    const settings = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri("settings.json", currentUri(".vscode")))));
+                    this.addon.modifySettings(this.config, settings);
+                    await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
+                    await vscode.workspace.fs.writeFile(fileUri("settings.json", currentUri(".vscode")), new TextEncoder().encode(JSON.stringify(settings, null, 4)));
+                }
             }
         }
     }

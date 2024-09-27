@@ -22,16 +22,16 @@ export interface Addon {
 
 
     /**
-     * @brief Modify the project.json settings if required by the addon
+     * @brief Modify the configuration and project.json settings if required by the addon
      * @param settings Current settings (will be modified by this method)
     **/
-    modifySettings(settings: any) : void;
+    modifySettings(config: Config, settings: any) : void;
 
 
     /**
-     * @brief Modify configuration settings if required by the addon
-     * @param config Current configuration (will be modified by this method)
+     * @brief Cancel modifications to the configuration and project.json settings
+     * @param settings Current settings (will be modified by this method)
     **/
-    modifyConfig(config: Config) : void;
+    cancelSettings(config: Config, settings: any) : void;
 
 }
