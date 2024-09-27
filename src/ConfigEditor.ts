@@ -54,14 +54,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         };
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, this.config.name);
         webviewPanel.webview.onDidReceiveMessage(showErrorWrap(this.messageReceived.bind(this)));
-        await this._update(webviewPanel);
-
-        // Load inputs the first time the webview is opened
-        webviewPanel.webview.postMessage({ 
-            type: "load_inputs",
-            ignored: this.config.filesConfig.ignoreRules,
-            static: this.config.filesConfig.staticRules
-        });
+        this.loadInputs(webviewPanel);
     }
 
 
@@ -202,6 +195,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
         switch (message.type) {
             case "on_load":
                 await this.addToMembers();
+                await this.update(this.config, false);
                 return;
 
             case "remove_member":
@@ -377,15 +371,24 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
     /**
      * @brief Update all opened configuration editors
      * @param config Updated configuration (will be modified)
+     * @param loadInputs Wether or not to load text inputs from config (default: true)
     **/
-    public async update(config: Config) : Promise<void> {
+    public async update(config: Config, loadInputs: boolean = true) : Promise<void> {
         this.config = config;
         for (const webviewPanel of this.webviews) {
-            await this._update(webviewPanel);
+            await this.updateWebview(webviewPanel);
+            if (loadInputs) {
+                this.loadInputs(webviewPanel);
+            }
         }
     }
 
-    private async _update(webviewPanel: vscode.WebviewPanel) : Promise<void> {
+
+    /**
+     * @brief Update the webview content
+     * @param webviewPanel Webview to update
+    **/
+    private async updateWebview(webviewPanel: vscode.WebviewPanel) : Promise<void> {
         // Get the image uris
         const crown = webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "media", "crown.png"));
         const trash = webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "media", "trash.png"));
@@ -400,6 +403,19 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                 trash: trash.toString()
             },
             backupPath: Project.instance!.backupPath
+        });
+    }
+
+    
+    /**
+     * @brief Load the static and ignore rule in the text inputs
+     * @param webviewPanel Webview to update
+    **/
+    private loadInputs(webviewPanel: vscode.WebviewPanel) : void {
+        webviewPanel.webview.postMessage({ 
+            type: "load_inputs",
+            ignored: this.config.filesConfig.ignoreRules,
+            static: this.config.filesConfig.staticRules
         });
     }
 }
