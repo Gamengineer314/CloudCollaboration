@@ -197,8 +197,26 @@ addButton.addEventListener('click', () => {
     // Remove the addButton and show the input, the confirm and the cancel buttons
     addDiv.removeChild(addButton);
     addInput.style.visibility = 'visible';
+    addInput.focus();
     confirmButton.style.visibility = 'visible';
     cancelButton.style.visibility = 'visible';
+});
+
+addInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        // Send a message to the extension to add the member
+        vscode.postMessage({
+            type: 'add_member',
+            email: addInput.value
+        });
+
+        // Hide the input, the confirm and the cancel buttons and show the addButton
+        addInput.style.visibility = 'hidden';
+        confirmButton.style.visibility = 'hidden';
+        cancelButton.style.visibility = 'hidden';
+        addInput.value = '';
+        addDiv.prepend(addButton);
+    }
 });
 
 cancelButton.addEventListener('click', () => {
