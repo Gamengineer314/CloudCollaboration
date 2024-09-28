@@ -150,6 +150,15 @@ textarea {
     margin-right: 5px;
     vertical-align: top;
 }
+#project_type {
+    margin-top: 15px;
+    margin-left: 30px;
+    font-size: 20px;
+    padding: 5px 10px;
+    outline: none;
+    background: var(--vscode-settings-textInputBackground);
+    color: var(--vscode-settings-textInputForeground);
+}
 
 
 .help_h, .help_h+.help_div {

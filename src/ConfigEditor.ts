@@ -89,6 +89,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
 </head>
 <body>
     <h1>${name}</h1>
+
     <h2>Project Members :</h2>
 
     <div id="members"></div>
@@ -144,6 +145,16 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
     <div id="static_save_div">
         <button id="static_save" class="add_button">Save</button>
         <span id="static_saved">Saved</span>
+    </div>
+
+
+    <h2>Project Type :</h2>
+
+    <div id="project_type_div">
+        <select id="project_type">
+            <option value="Unspecified">Unspecified</option>
+            <option value="Latex">Latex</option>
+        </select>
     </div>
 
 
@@ -244,6 +255,10 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                 await vscode.env.clipboard.writeText(message.value);
                 vscode.window.showInformationMessage("Path copied to clipboard");
                 return;
+            
+            case "project_type":
+                this.config.addon = message.value;
+                break;
         }
 
         // Save modifications

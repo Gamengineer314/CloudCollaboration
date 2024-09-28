@@ -1,7 +1,7 @@
 const vscode = acquireVsCodeApi();
 
 
-function updateMembers(owner, members, invites, public, publicMembers, isOwner, uris, backup_frequency, backup_amount, backupPath) {
+function updateMembers(owner, members, invites, public, publicMembers, isOwner, uris, backup_frequency, backup_amount, backupPath, addon) {
     // Get the members div
     const membersDiv = document.getElementById('members');
 
@@ -135,6 +135,9 @@ function updateMembers(owner, members, invites, public, publicMembers, isOwner, 
 
     backupPathText.innerText = backupPath;
 
+    // Project type
+    projectType.value = addon;
+
 
     // Load the rules inputs from the storage
     const state = vscode.getState();
@@ -177,7 +180,7 @@ window.addEventListener('message', event => {
     const message = event.data;
     switch (message.type) {
         case 'update':
-            updateMembers(message.config.shareConfig.owner, message.config.shareConfig.members, message.config.shareConfig.invites, message.config.shareConfig.public, message.config.shareConfig.publicMembers, message.config.shareConfig.owner === message.email, message.uris, message.config.filesConfig.backupFrequency, message.config.filesConfig.maximumBackups, message.backupPath);
+            updateMembers(message.config.shareConfig.owner, message.config.shareConfig.members, message.config.shareConfig.invites, message.config.shareConfig.public, message.config.shareConfig.publicMembers, message.config.shareConfig.owner === message.email, message.uris, message.config.filesConfig.backupFrequency, message.config.filesConfig.maximumBackups, message.backupPath, message.config.addon);
             return;
         case 'load_inputs':
             loadInputs(message.ignored, message.static);
@@ -410,6 +413,17 @@ backupPathCopy.addEventListener('click', () => {
     vscode.postMessage({
         type: 'copy_backup_path',
         value: backupPathText.innerText
+    });
+});
+
+
+// Project type
+const projectType = document.getElementById('project_type');
+
+projectType.addEventListener('change', () => {
+    vscode.postMessage({
+        type: 'project_type',
+        value: projectType.value
     });
 });
 
