@@ -136,8 +136,8 @@ export function showErrorWrap(action: ((...args: any) => void | Promise<void>)) 
         try {
             await action(...args);
         }
-        catch (error : any) {
-            logError(error.message);
+        catch (error: any) {
+            logError(error.message, error);
         }
     };
 }
@@ -176,8 +176,8 @@ export function log(message: string) {
 /**
  * @brief Show an error message to the user and log it to the console and the output channel
 **/
-export function logError(message: string) {output.appendLine(message);
+export function logError(message: string, error: Error | undefined = undefined) {
     vscode.window.showErrorMessage(message);
     output.error(message);
-    console.error(new Error(`[${new Date().toLocaleString()}] ${message}`));
+    console.error(error || new Error(message));
 }

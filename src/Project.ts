@@ -149,9 +149,6 @@ export class Project {
                 await Project.instance.fileSystem.upload(Project.instance.config.filesConfig, true, true);
             }
         }
-        if (Project.instance) {
-            Project.instance.addon?.deactivate();
-        }
     }
 
 
@@ -325,7 +322,7 @@ export class Project {
         }, 5_000);
         await instance.updateConfig(true);
         instance.addon = addons.get(instance.config.addon);
-        instance.addon?.activate();
+        instance.addon?.activate(instance.host);
         LiveShare.instance!.onSessionEnd = showErrorWrap(async () => await Project.disconnect());
 
         // Setup editor
@@ -387,7 +384,7 @@ export class Project {
         await instance.fileSystem.startSync(false, instance.updateConfig.bind(instance));
         await instance.updateConfig(true);
         instance.addon = addons.get(instance.config.addon);
-        instance.addon?.activate();
+        instance.addon?.activate(instance.host);
 
         // Default settings
         for (const [key, value] of Object.entries(guestDefaultSettings)) {
@@ -477,6 +474,7 @@ export class Project {
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Disconnecting from project..." }, showErrorWrap(async () => {
             log("Disconnect");
             const instance = Project.instance!;
+            instance.addon?.deactivate(instance.host);
             if (instance.host) {
                 // Last upload
                 Project._instance = undefined;
@@ -720,23 +718,15 @@ export class Project {
         // Update addon
         if (!first && this.config.addon !== previousAddon) {
             if (this.addon) {
-                this.addon.deactivate();
-                if (this.host) {
-                    const settings = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri("settings.json", currentUri(".vscode")))));
-                    this.addon.cancelSettings(this.config, settings);
-                    await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
-                    await vscode.workspace.fs.writeFile(fileUri("settings.json", currentUri(".vscode")), new TextEncoder().encode(JSON.stringify(settings, null, 4)));
-                }
+                this.addon.deactivate(this.host);
             }
             this.addon = addons.get(this.config.addon);
             log("Addon changed " + this.config.addon);
             if (this.addon) {
-                this.addon.activate();
+                this.addon.activate(this.host);
                 if (this.host) {
-                    const settings = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri("settings.json", currentUri(".vscode")))));
-                    this.addon.modifySettings(this.config, settings);
+                    this.addon.defaultConfig(this.config);
                     await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
-                    await vscode.workspace.fs.writeFile(fileUri("settings.json", currentUri(".vscode")), new TextEncoder().encode(JSON.stringify(settings, null, 4)));
                 }
             }
         }

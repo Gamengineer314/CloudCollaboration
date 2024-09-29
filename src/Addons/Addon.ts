@@ -12,26 +12,19 @@ export interface Addon {
     /**
      * @brief Activate the addon
     **/
-    activate() : void;
+    activate(host: boolean) : void;
 
 
     /**
      * @brief Deactivate the addon
     **/
-    deactivate() : void;
+    deactivate(host: boolean) : void;
 
 
     /**
-     * @brief Modify the configuration and project.json settings if required by the addon
-     * @param settings Current settings (will be modified by this method)
+     * @brief Modify the configuration settings if required by the addon
+     * @param config Current configuration (will be modified by this method)
     **/
-    modifySettings(config: Config, settings: any) : void;
-
-
-    /**
-     * @brief Cancel modifications to the configuration and project.json settings
-     * @param settings Current settings (will be modified by this method)
-    **/
-    cancelSettings(config: Config, settings: any) : void;
+    defaultConfig(config: Config) : void;
 
 }
