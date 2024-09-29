@@ -220,6 +220,14 @@ addInput.addEventListener('keydown', (event) => {
         addInput.value = '';
         addDiv.prepend(addButton);
     }
+    if (event.key === 'Escape') {
+        // Hide the input, the confirm and the cancel buttons and show the addButton
+        addInput.style.visibility = 'hidden';
+        confirmButton.style.visibility = 'hidden';
+        cancelButton.style.visibility = 'hidden';
+        addInput.value = '';
+        addDiv.prepend(addButton);
+    }
 });
 
 cancelButton.addEventListener('click', () => {

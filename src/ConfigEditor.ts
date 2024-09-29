@@ -197,9 +197,11 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
     private async messageReceived(message: any) : Promise<void> {
         // Check instances
         if (!Project.instance) {
+            vscode.commands.executeCommand("workbench.action.closeActiveEditor");
             throw new Error("Configuration action failed : not connected");
         }
         if (!GoogleDrive.instance) {
+            vscode.commands.executeCommand("workbench.action.closeActiveEditor");
             throw new Error("Configuration action failed : not authenticated");
         }
 
