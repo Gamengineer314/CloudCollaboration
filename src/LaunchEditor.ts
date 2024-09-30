@@ -41,11 +41,13 @@ export class LaunchEditorProvider implements vscode.CustomTextEditorProvider {
                     return;
                 
                 case "disconnect":
+                    let disposed = false;
+                    webviewPanel.onDidDispose(() => disposed = true);
                     await Project.disconnect();
                     // Update the webview if the webview is still open
-                    try {
+                    if (!disposed) {
                         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, project.name, inSubFolder, Project.instance !== undefined, Project.connecting);
-                    } catch {}
+                    }
                     return; 
             }
         }));
