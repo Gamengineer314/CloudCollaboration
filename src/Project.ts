@@ -61,7 +61,7 @@ export class Project {
             const instance = new Project(project.project, project.host, project.state, FileSystem.copy(project.fileSystem, project.state));
             if (!previousFolder.active) { // Continue connecting
                 previousFolder.active = true;
-                context.globalState.update("previousFolder", previousFolder);
+                await context.globalState.update("previousFolder", previousFolder);
                 vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
                     async () => await Project.guestConnect(instance)
                 ));
@@ -69,8 +69,8 @@ export class Project {
             else {
                 if (!previousFolder.connected) { // Error -> connect as host
                     if (currentFolder && previousFolder.path === currentFolder.path) { // Connect
-                        context.globalState.update("projectState", undefined);
-                        context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
+                        await context.globalState.update("projectState", undefined);
+                        await context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
                         instance.host = true;
                         vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
                             async () => await Project.hostConnect(instance)
@@ -83,24 +83,26 @@ export class Project {
                 }
                 else { // Invalid state
                     logError("Project activation failed : invalid state");
-                    context.globalState.update("projectState", undefined);
-                    context.globalState.update("previousFolder", undefined);
+                    await context.globalState.update("projectState", undefined);
+                    await context.globalState.update("previousFolder", undefined);
                 }
             }
         }
         else {
             if (project) { // Invalid state
                 logError("Project activation failed : invalid state");
+                await context.globalState.update("projectState", undefined);
+                await context.globalState.update("previousFolder", undefined);
             }
             else if (previousFolder && previousFolder.active) {
                 if (previousFolder.disconnected) { // Come back to previous folder
                     log("Come back");
-                    context.globalState.update("previousFolder", undefined);
+                    await context.globalState.update("previousFolder", undefined);
                     vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
                 }
                 else if (!currentFolder || previousFolder.path === currentFolder.path) { // Host disconnected -> reconnect
                     if (currentFolder) { // Reconnect
-                        context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
+                        await context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
                         vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Reconnecting to project..." }, showErrorWrap(
                             async () => await Project.reconnect(previousFolder.sessionUrl, previousFolder.userIndex)
                         ));
@@ -112,12 +114,12 @@ export class Project {
                 }
                 else { // Come back to previous folder
                     log("Not disconnected");
-                    context.globalState.update("previousFolder", undefined);
+                    await context.globalState.update("previousFolder", undefined);
                     vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
                 }
             }
             else if (currentFolder) { // Create previous folder
-                context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
+                await context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
             }
         }
 
@@ -369,11 +371,11 @@ export class Project {
         await waitFor(() => vscode.window.activeTextEditor !== undefined);
 
         // Update previous folder
-        context.globalState.update("projectState", undefined);
+        await context.globalState.update("projectState", undefined);
         const previousFolder = context.globalState.get<PreviousFolder>("previousFolder")!;
         previousFolder.connected = true;
         previousFolder.sessionUrl = LiveShare.instance!.sessionUrl!;
-        context.globalState.update("previousFolder", previousFolder);
+        await context.globalState.update("previousFolder", previousFolder);
         LiveShare.instance!.onIndexChanged = (index) => {
             previousFolder.userIndex = index;
             context.globalState.update("previousFolder", previousFolder);
