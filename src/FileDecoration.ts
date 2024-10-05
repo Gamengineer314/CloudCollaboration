@@ -1,5 +1,5 @@
 import { CancellationToken, FileDecoration, FileDecorationProvider, ThemeColor, Uri, Event, EventEmitter, Disposable } from "vscode";
-import { collaborationName, currentRecurListFolder, currentUri } from "./util";
+import { collaborationName, currentRecurListFolder, currentUri, inCollaboration } from "./util";
 import { match } from "./FileRules";
 import { Project } from "./Project";
 import { FilesConfig } from "./FileSystem";
@@ -32,7 +32,7 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
         const name = collaborationName(fileUri);
 
         // .collablaunch and .collabconfig files
-        if (name === ".collablaunch" || name === ".collabconfig") {
+        if (fileUri.path.endsWith(".collablaunch") || fileUri.path.endsWith(".collabconfig")) {
             return {
                 color: new ThemeColor("cloudCollaboration.special"),
             };
@@ -44,7 +44,7 @@ export class IgnoreStaticDecorationProvider implements FileDecorationProvider {
         }
 
         // Ignore and static files
-        if (name === "" || match(name, this.ignoreRules)) {
+        if (!inCollaboration(fileUri) || match(name, this.ignoreRules)) {
             return {
                 color: new ThemeColor("cloudCollaboration.ignore"),
             };

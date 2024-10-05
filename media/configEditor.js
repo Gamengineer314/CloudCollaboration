@@ -324,27 +324,14 @@ const staticSave = document.getElementById('static_save');
 const staticSaved = document.getElementById('static_saved');
 
 // Save buttons
-function saveIgnore() {
+function save() {
     vscode.postMessage({
-        type: 'save_ignored',
-        value: ignoredInput.value.split('\n')
+        type: 'save',
+        ignore: ignoredInput.value.split('\n'),
+        static: staticInput.value.split('\n')
     });
     ignoredSaved.style.visibility = 'visible';
     ignoredSave.style.display = 'none';
-
-    const state = vscode.getState();
-    vscode.setState({
-        ignored: state.ignored,
-        static: state.static,
-        ignored_saved: true,
-        static_saved: state.static_saved
-    });
-}
-function saveStatic() {
-    vscode.postMessage({
-        type: 'save_static',
-        value: staticInput.value.split('\n')
-    });
     staticSaved.style.visibility = 'visible';
     staticSave.style.display = 'none';
 
@@ -352,10 +339,11 @@ function saveStatic() {
     vscode.setState({
         ignored: state.ignored,
         static: state.static,
-        ignored_saved: state.ignored_saved,
+        ignored_saved: true,
         static_saved: true
     });
 }
+
 function modifiedIgnore() {
     ignoredSaved.style.visibility = 'hidden';
     ignoredSave.style.display = 'initial';
@@ -365,8 +353,8 @@ function modifiedStatic() {
     staticSave.style.display = 'initial';
 }
 
-ignoredSave.addEventListener('click', saveIgnore);
-staticSave.addEventListener('click', saveStatic);
+ignoredSave.addEventListener('click', save);
+staticSave.addEventListener('click', save);
 
 // Update the storage when the inputs change
 ignoredInput.addEventListener('input', () => {

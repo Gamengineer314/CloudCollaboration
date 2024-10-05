@@ -232,12 +232,9 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
                 }
                 break;
             
-            case "save_ignored":
-                this.config.filesConfig.ignoreRules = message.value;
-                break;
-
-            case "save_static":
-                this.config.filesConfig.staticRules = message.value;
+            case "save":
+                this.config.filesConfig.ignoreRules = message.ignore;
+                this.config.filesConfig.staticRules = message.static;
                 break;
             
             case "backup_amount":

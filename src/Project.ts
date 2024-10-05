@@ -712,7 +712,9 @@ export class Project {
         await ConfigEditorProvider.instance?.update(structuredClone(this.config));
 
         // Update file decorations
-        if (this.config.filesConfig.ignoreRules.some((value, index) => value !== previousIgnore[index]) || 
+        if (this.config.filesConfig.ignoreRules.length !== previousIgnore.length ||
+            this.config.filesConfig.staticRules.length !== previousStatic.length ||
+            this.config.filesConfig.ignoreRules.some((value, index) => value !== previousIgnore[index]) || 
             this.config.filesConfig.staticRules.some((value, index) => value !== previousStatic[index])) {
             await IgnoreStaticDecorationProvider.instance?.update(this.config.filesConfig);
         }

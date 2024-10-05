@@ -45,6 +45,14 @@ export function collaborationUri(fileName: string) : vscode.Uri {
 
 
 /**
+ * @brief Check if a file is in the collaboration folder
+ * @param uri URI of the file
+**/
+export function inCollaboration(uri: vscode.Uri) : boolean {
+    return uri.path.startsWith(collaborationFolder.path);
+}
+
+/**
  * @brief Get the name of a file in the collaboration folder
  * @param uri URI of the file
 **/
