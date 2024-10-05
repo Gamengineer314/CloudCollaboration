@@ -727,7 +727,7 @@ export class FileSystem {
     **/
     public async copyFiles(folder: vscode.Uri) {
         for (const file of await recurListFolder(this.projectFolder)) {
-            await vscode.workspace.fs.copy(this.projectUri(file), fileUri(file, folder));
+            await vscode.workspace.fs.copy(this.projectUri(file), fileUri(file, folder), { overwrite: true });
         }
     }
 
