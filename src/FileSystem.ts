@@ -15,7 +15,6 @@ export class FileSystem {
     private previousDynamic : Set<string> = new Set<string>();
     private previousStatic : Set<string> = new Set<string>();
     private binaryFiles : Set<string> = new Set<string>(); // Name of all binary files
-    private createdFiles : Set<string> = new Set<string>(); // Name of the files that were just created by the user
     private backupCount : number = -1;
     private synchronizing : boolean = false;
     private onUpdateConfig: () => void | Promise<void> = () => {};
@@ -433,13 +432,6 @@ export class FileSystem {
                 }
             }
         })));
-        
-        // Get files created by the user
-        this.syncDisposables.push(vscode.workspace.onWillCreateFiles(showErrorWrap(async (event: vscode.FileWillCreateEvent) => {
-            for (const file of event.files) {
-                this.createdFiles.add(collaborationName(file));
-            }
-        })));
 
         this.synchronizing = true;
         this.onUpdateConfig = onUpdateConfig;
@@ -473,10 +465,6 @@ export class FileSystem {
             return;
         }
         state.collaborationModifying = true;
-
-        // Check if this user created the file
-        const creator = this.createdFiles.has(collabName);
-        this.createdFiles.delete(collabName);
 
         // Modify project file while collaboration file is modified
         do {
@@ -520,13 +508,14 @@ export class FileSystem {
                         await vscode.workspace.fs.createDirectory(this.projectUri(projectName));
                     }
                     else {
-                        log("Create/modify project file " + projectName);
+                        log((create ? "Create" : "Modify") + " project file " + projectName);
                         if (create) {
                             create = false;
                             if (collabName.endsWith(".collab64")) { // Binary file -> add to binary files
                                 this.binaryFiles.add(projectName);
                             }
-                            else if (creator && isBinary(content)) { // Shouldn't be binary
+                            else if (isBinary(content)) { // Shouldn't be binary
+                                log("Shouldn't be binary " + projectName);
                                 vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files")
                                 .then(showErrorWrap(async (item: string | undefined) => {
                                     if (item) {
