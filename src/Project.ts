@@ -214,7 +214,7 @@ export class Project {
         await GoogleDrive.instance.pickProject(async (project) => {
             // Default files
             await vscode.workspace.fs.writeFile(currentUri(".collablaunch"), new TextEncoder().encode(JSON.stringify(project, null, 4)));
-            await vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
+            vscode.commands.executeCommand("vscode.openWith", currentUri(".collablaunch"), "cloud-collaboration.launchEditor");
             await vscode.workspace.fs.createDirectory(currentUri(".vscode"));
             await vscode.workspace.fs.writeFile(currentUri(".vscode/settings.json"), new TextEncoder().encode(hostDefaultSettings));
             await vscode.workspace.fs.createDirectory(collaborationFolder);
@@ -329,9 +329,9 @@ export class Project {
 
         // Setup editor
         await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-        await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-        await vscode.commands.executeCommand("workbench.action.terminal.killAll");
-        await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+        vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+        vscode.commands.executeCommand("workbench.action.terminal.killAll");
+        vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
     }
 
 
@@ -395,9 +395,9 @@ export class Project {
 
         // Setup editor
         await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-        await vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
-        await vscode.commands.executeCommand("workbench.action.terminal.killAll");
-        await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+        vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
+        vscode.commands.executeCommand("workbench.action.terminal.killAll");
+        vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
     }
 
 
@@ -513,8 +513,8 @@ export class Project {
             await instance.fileSystem.clear(instance.config.filesConfig, true);
 
             // Setup editor
-            await vscode.commands.executeCommand("workbench.action.terminal.killAll");
-            await vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
+            vscode.commands.executeCommand("workbench.action.terminal.killAll");
+            vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
         }
     }
 
