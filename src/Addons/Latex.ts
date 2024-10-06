@@ -66,6 +66,7 @@ export class LatexAddon implements Addon {
 
             vscode.workspace.getConfiguration("latex-workshop", currentFolder).update("latex.outDir", fileUri("out", Project.instance!.projectFolder).fsPath);
             vscode.workspace.fs.createDirectory(fileUri("out", Project.instance!.projectFolder));
+            vscode.workspace.getConfiguration("latex-workshop", currentFolder).update("latex.autoBuild.run", "onSave");
         }
     }
 
@@ -92,6 +93,7 @@ export class LatexAddon implements Addon {
             }
 
             vscode.workspace.getConfiguration("latex-workshop", currentFolder).update("latex.outDir", undefined);
+            vscode.workspace.getConfiguration("latex-workshop", currentFolder).update("latex.autoBuild.run", undefined);
         }
     }
 

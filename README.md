@@ -17,6 +17,9 @@ When connecting to a project, the extension automatically joins another particip
 
 ![Example](media/CloudCollaboration.gif)
 
+## Addons
+Cloud Collaboration adds specific features for certain types of project. You can define your project type if available in the _.collabconfig_ file. Currently, the extension only adds functionality to LaTeX projects, allowing any connected participant to compile the project if they have the _LaTeX Workshop_ extension and the _latexmk_ compiler.
+
 ## Warning
 The extension is new and has not yet been extensively tested so it may still contain bugs. To prevent data loss, project files are regularly and automatically backed up. You can choose how many backups are maintained, how often they are added, and find the path where they are stored in the _.collabconfig_ file. If you find any bug, please report it on [GitHub](https://github.com/Gamengineer314/CloudCollaboration/issues).
 

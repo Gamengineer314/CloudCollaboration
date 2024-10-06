@@ -2,7 +2,7 @@
   "name": "cloud-collaboration",
   "displayName": "Cloud Collaboration",
   "description": "Real-time collaboration with cloud storage",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "icon":  "media/icon_high.png",
   "publisher": "gamengineer314",
   "engines": {
