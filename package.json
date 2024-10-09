@@ -75,16 +75,32 @@
         {
           "command": "cloud-collaboration.newTerminal",
           "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.createProject",
+          "when": "!cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.joinProject",
+          "when": "!cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.downloadProject",
+          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.uploadFiles",
+          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
         }
       ],
       "explorer/context": [
         {
           "command": "cloud-collaboration.createProject",
-          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && workspaceFolderCount == 1"
+          "when": "!cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.joinProject",
-          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && workspaceFolderCount == 1"
+          "when": "!cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.downloadProject",
