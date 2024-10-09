@@ -728,7 +728,8 @@ export class FileSystem {
     **/
     public async addFiles(files: vscode.Uri[], name: string) : Promise<void> {
         for (const file of files) {
-            await vscode.workspace.fs.copy(file, this.projectUri(name + "/" + file.path.substring(file.path.lastIndexOf("/") + 1)));
+            const dest = this.projectUri(name + "/" + file.path.substring(file.path.lastIndexOf("/") + 1));
+            await vscode.workspace.fs.copy(file, dest, { overwrite: true});
         }
     }
 

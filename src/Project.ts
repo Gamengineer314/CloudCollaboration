@@ -3,7 +3,7 @@ import { GoogleDrive, DriveProject, Permission, ProjectState } from "./GoogleDri
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { collaborationFolder, context, currentFolder } from "./extension";
-import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, sleep, waitFor, collaborationName, log, logError } from "./util";
+import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, sleep, waitFor, collaborationName, log, logError, inCollaboration } from "./util";
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 import { Addon, addons } from "./Addons/Addon";
 import { ConfigEditorProvider } from "./ConfigEditor";
@@ -657,7 +657,7 @@ export class Project {
      * @brief Prompt the user to select files to add to the project
      * @param uri The URI of the folder to add the files to
     **/
-    public async uploadFiles(uri: vscode.Uri) : Promise<void> {
+    public async uploadFiles(uri: vscode.Uri | null = null) : Promise<void> {
         // Prompt user to select files
         const files = await vscode.window.showOpenDialog({ defaultUri: vscode.Uri.parse("file:///"), title: "Select files to upload", canSelectMany: true });
         if (!files) {
@@ -665,10 +665,16 @@ export class Project {
         }
 
         // Get the name of the folder
-        let name = collaborationName(uri);
-        const stat = await vscode.workspace.fs.stat(uri);
-        if (stat.type !== vscode.FileType.Directory) {
-            name = name.substring(0, name.lastIndexOf("/"));
+        let name: string;
+        if (uri && inCollaboration(uri)) {
+            name = collaborationName(uri);
+            const stat = await vscode.workspace.fs.stat(uri);
+            if (stat.type !== vscode.FileType.Directory) {
+                name = name.substring(0, name.lastIndexOf("/"));
+            }
+        }
+        else {
+            name = "/";
         }
 
         // Upload files
