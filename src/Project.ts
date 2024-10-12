@@ -3,7 +3,7 @@ import { GoogleDrive, DriveProject, Permission, ProjectState } from "./GoogleDri
 import { LiveShare } from "./LiveShare";
 import { FileSystem, FilesConfig } from "./FileSystem";
 import { collaborationFolder, context, currentFolder } from "./extension";
-import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, sleep, waitFor, collaborationName, log, logError, inCollaboration } from "./util";
+import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, showErrorWrap, sleep, waitFor, collaborationName, log, logError, inCollaboration, Mutex } from "./util";
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 import { Addon, addons } from "./Addons/Addon";
 import { ConfigEditorProvider } from "./ConfigEditor";
@@ -33,8 +33,8 @@ export class Project {
 
     private config : Config = Config.default;
     private addon : Addon | undefined = undefined;
-    private uploading : boolean = false;
-    private mustUpload : boolean | undefined = undefined;
+    private mustUpload : boolean = false;
+    private mutex : Mutex = new Mutex();
     private static clearingGarbage : boolean = false;
 
     private constructor(
@@ -146,10 +146,12 @@ export class Project {
     **/
     public static async deactivate() : Promise<void> {
         if (Project.instance && Project.instance.host) {
-            Project.instance.mustUpload = false;
-            if (!Project.instance.uploading) {
+            await Project.instance.mutex.lock();
+            if (Project.instance.mustUpload) {
+                Project.instance.mustUpload = false;
                 await Project.instance.fileSystem.upload(Project.instance.config.filesConfig, true, true);
             }
+            Project.instance.mutex.unlock();
         }
     }
 
@@ -317,11 +319,6 @@ export class Project {
         await GoogleDrive.instance!.setState(instance.project, instance.state);
         Project._instance = instance;
         await instance.fileSystem.startSync(true, instance.updateConfig.bind(instance));
-        setTimeout(() => {
-            if (Project.instance === instance) {
-                instance.startUpload();
-            }
-        }, 5_000);
         await instance.updateConfig(true);
         instance.addon = addons.get(instance.config.addon);
         instance.addon?.activate(instance.host);
@@ -332,6 +329,9 @@ export class Project {
         vscode.commands.executeCommand("vscode.openWith", collaborationUri(".collabconfig"), "cloud-collaboration.configEditor");
         vscode.commands.executeCommand("workbench.action.terminal.killAll");
         vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
+
+        // Start upload
+        instance.startUpload();
     }
 
 
@@ -533,46 +533,44 @@ export class Project {
      * @brief Upload files regularly to Google Drive
     **/
     private async uploadLoop() : Promise<void> {
-        while (true) {
-            // Check host
-            if (await this.checkHost()) {
-                break;
-            }
+        // Check host
+        await this.mutex.lock();
+        if (await this.checkHost()) {
+            this.mutex.unlock();
+            return;
+        }
+        this.mutex.unlock();
 
+        while (true) {
             // Wait 1 minute
             await sleep(60_000);
-            await waitFor(() => this.mustUpload !== undefined);
+
+            // Check and upload
+            await this.mutex.lock();
             if (!this.mustUpload) {
+                this.mutex.unlock();
                 break;
             }
-
-            // Check host
             if (await this.checkHost()) {
+                this.mutex.unlock();
                 break;
             }
             try {
-                // Upload
-                this.uploading = true;
                 await vscode.commands.executeCommand("workbench.action.files.saveAll");
                 await sleep(1000);
                 await this.fileSystem.upload(this.config.filesConfig);
-                this.uploading = false;
-                await waitFor(() => this.mustUpload !== undefined);
-                if (!this.mustUpload) {
-                    break;
-                }
             }
             catch (error: any) {
-                this.uploading = false;
                 logError(error.message);
             }
+            this.mutex.unlock();
         }
     }
 
 
     /**
      * @brief Check if this user is the host on Google Drive, disconnect if it is not
-     * @returns Wether or not the update loop must be stopped
+     * @returns Wether or not the upload loop must be stopped
     **/
     private async checkHost() : Promise<boolean> {
         let currentUrl;
@@ -603,20 +601,22 @@ export class Project {
     **/
     private async stopUpload() : Promise<void> {
         log("Stop upload");
-        this.mustUpload = undefined; // Pause upload
-        if (this.uploading) {
-            await waitFor(() => !this.uploading);
+        await this.mutex.lock();
+        if (!this.mustUpload) {
+            this.mutex.unlock();
+            return;
         }
         try {
             await vscode.commands.executeCommand("workbench.action.files.saveAll");
             await sleep(1000);
             await this.fileSystem.upload(this.config.filesConfig, true);
         }
-        catch (error: any) {
-            this.mustUpload = true; // Resume upload
+        catch (error: any) { // Resume upload if error
+            this.mutex.unlock();
             throw error;
         }
         this.mustUpload = false; // Stop upload
+        this.mutex.unlock();
     }
 
 

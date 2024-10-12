@@ -92,8 +92,8 @@ export async function collaborationListFolder() : Promise<[string, vscode.FileTy
 /**
  * @brief Recursively get the names (with sub-folder names) of all files in a folder
  * @param folder The folder
- * @param listType Type of files to list
- * @note If listType = FileType.Directory, the name of a folder is always given before the name of all its parent folders
+ * @param listType Type of files to list (default: FileType.File)
+ * @note The names are returned in depth-first order
 **/
 export function recurListFolder(folder: vscode.Uri, listType: vscode.FileType = vscode.FileType.File) : Promise<string[]> {
     return _recurListFolder(folder || currentFolder, listType);
@@ -168,6 +168,29 @@ export async function sleep(ms: number) : Promise<void> {
 export async function waitFor(condition: () => boolean, interval: number = 100) : Promise<void> {
     while (!condition()) {
         await sleep(interval);
+    }
+}
+
+
+export class Mutex {
+    private _locked: boolean = false;
+    public get locked() : boolean { return this._locked; }
+
+    /**
+     * @brief Wait until the mutex is unlocked, then lock it
+    **/
+    public async lock() : Promise<void> {
+        if (this._locked) {
+            await waitFor(() => !this._locked);
+        }
+        this._locked = true;
+    }
+
+    /**
+     * @brief Unlock the mutex
+    **/
+    public unlock() {
+        this._locked = false;
     }
 }
 
