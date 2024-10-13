@@ -54,72 +54,55 @@ export class Project {
      * @brief Activate Project class
     **/
     public static async activate() : Promise<void> {
-        const project = context.globalState.get<Project>("projectState");
-        const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
-        log(JSON.stringify(previousFolder));
-        if (project && previousFolder) { // Connected to a project
-            const instance = new Project(project.project, project.host, project.state, FileSystem.copy(project.fileSystem, project.state));
-            if (!previousFolder.active) { // Continue connecting
-                previousFolder.active = true;
-                await context.globalState.update("previousFolder", previousFolder);
+        const windowState = context.globalState.get<WindowState>("windowState");
+        log(JSON.stringify(windowState));
+        if (windowState && windowState.project) { // Connecting to a project
+            if (!windowState.continued) { // Continue connecting
+                windowState.continued = true;
+                await context.globalState.update("windowState", windowState);
+                const instance = new Project(
+                    windowState.project.project, 
+                    windowState.project.host, 
+                    windowState.project.state, 
+                    FileSystem.copy(windowState.project.fileSystem, windowState.project.state)
+                );
                 vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
-                    async () => await Project.guestConnect(instance)
+                    async () => await Project.continueConnect(instance)
                 ));
             }
-            else {
-                if (!previousFolder.connected) { // Error -> connect as host
-                    if (currentFolder && previousFolder.path === currentFolder.path) { // Connect
-                        await context.globalState.update("projectState", undefined);
-                        await context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
-                        instance.host = true;
-                        vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
-                            async () => await Project.hostConnect(instance)
-                        ));
-                    }
-                    else { // Come back to previous folder
-                        log("Connection error");
-                        vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
-                    }
-                }
-                else { // Invalid state
-                    logError("Project activation failed : invalid state");
-                    await context.globalState.update("projectState", undefined);
-                    await context.globalState.update("previousFolder", undefined);
-                }
+            else { // Connection error -> come back to previous folder
+                logError("Connection error");
+                await context.globalState.update("windowState", undefined);
+                vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(windowState.path), false);
             }
         }
-        else {
-            if (project) { // Invalid state
-                logError("Project activation failed : invalid state");
-                await context.globalState.update("projectState", undefined);
-                await context.globalState.update("previousFolder", undefined);
-            }
-            else if (previousFolder && previousFolder.active) {
-                if (previousFolder.disconnected) { // Come back to previous folder
+        else if (windowState) {
+            if (windowState.continued) {
+                if (windowState.disconnected) { // Come back to previous folder
                     log("Come back");
-                    await context.globalState.update("previousFolder", undefined);
-                    vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
+                    await context.globalState.update("windowState", undefined);
+                    vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(windowState.path), false);
                 }
-                else if (!currentFolder || previousFolder.path === currentFolder.path) { // Host disconnected -> reconnect
+                else if (!currentFolder || windowState.path === currentFolder.path) { // Host disconnected -> reconnect
                     if (currentFolder) { // Reconnect
-                        await context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
+                        await context.globalState.update("windowState", undefined);
                         vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Reconnecting to project..." }, showErrorWrap(
-                            async () => await Project.reconnect(previousFolder.sessionUrl, previousFolder.userIndex)
+                            async () => await Project.reconnect(windowState.userIndex)
                         ));
                     }
                     else { // Come back to previous folder
                         log("Reconnection");
-                        vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
+                        vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(windowState.path), false);
                     }
                 }
                 else { // Come back to previous folder
-                    log("Not disconnected");
-                    await context.globalState.update("previousFolder", undefined);
-                    vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(previousFolder.path), false);
+                    logError("Not disconnected");
+                    await context.globalState.update("windowState", undefined);
                 }
             }
-            else if (currentFolder) { // Create previous folder
-                await context.globalState.update("previousFolder", new PreviousFolder(currentFolder.path));
+            else {
+                logError("Invalid state");
+                await context.globalState.update("windowState", undefined);
             }
         }
 
@@ -254,19 +237,24 @@ export class Project {
                 // Get project information from .collablaunch file
                 const driveProject = project || JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
                 const projectState = state || await GoogleDrive.instance!.getState(driveProject);
-                const host = projectState.url === "";
+                let host = projectState.url === "";
+                if (!host && !await LiveShare.checkSession(projectState.url)) {
+                    host = true;
+                    log("Override");
+                }
                 const fileSystem = await FileSystem.init(driveProject, projectState);
                 const instance = new Project(driveProject, host, projectState, fileSystem);
 
                 try {
                     if (host) {
                         // Connect
+                        log("Host connect");
                         await Project._hostConnect(instance);
                     }
                     else {
                         // Save project state and join Live Share session (the extension will restart)
                         await LiveShare.activate();
-                        await context.globalState.update("projectState", instance);
+                        await context.globalState.update("windowState", new WindowState(currentFolder.path, instance));
                         await LiveShare.instance!.joinSession(projectState.url);
                     }
                 }
@@ -279,35 +267,6 @@ export class Project {
                 Project._connecting = false;
             }
         }));
-    }
-
-
-    /**
-     * @brief Connect to a project as a host
-     * @param instance Project instance
-    **/
-    private static async hostConnect(instance: Project) : Promise<void> {
-        // Checks
-        if (Project.instance || Project.connecting) {
-            throw new Error("Connection failed : already connected");
-        }
-        Project._connecting = true;
-        if (Project.clearingGarbage) {
-            await waitFor(() => !Project.clearingGarbage);
-        }
-
-        // Connect
-        log("Host connect");
-        try {
-            await Project._hostConnect(instance);
-        }
-        catch (error: any) {
-            logError(error.message);
-            await Project._disconnect(instance);
-        }
-        finally {
-            Project._connecting = false;
-        }
     }
 
     private static async _hostConnect(instance: Project) : Promise<void> {
@@ -336,10 +295,10 @@ export class Project {
 
 
     /**
-     * @brief Connect to a project as a guest
+     * @brief Continue connecting to the project as a guest after the extension restarted
      * @param instance Project instance
     **/
-    private static async guestConnect(instance: Project) : Promise<void> {
+    private static async continueConnect(instance: Project) : Promise<void> {
         // Checks
         if (Project.instance || Project.connecting) {
             throw new Error("Connection failed : already connected");
@@ -349,9 +308,9 @@ export class Project {
             await waitFor(() => !Project.clearingGarbage);
         }
 
-        // Connect
-        log("Guest connect");
         try {
+            // Connect
+            log("Guest connect");
             await Project._guestConnect(instance);
         }
         catch (error: any) {
@@ -371,14 +330,11 @@ export class Project {
         await waitFor(() => vscode.window.activeTextEditor !== undefined);
 
         // Update previous folder
-        await context.globalState.update("projectState", undefined);
-        const previousFolder = context.globalState.get<PreviousFolder>("previousFolder")!;
-        previousFolder.connected = true;
-        previousFolder.sessionUrl = LiveShare.instance!.sessionUrl!;
-        await context.globalState.update("previousFolder", previousFolder);
+        const windowState = context.globalState.get<WindowState>("windowState")!;
+        windowState.project = undefined;
         LiveShare.instance!.onIndexChanged = (index) => {
-            previousFolder.userIndex = index;
-            context.globalState.update("previousFolder", previousFolder);
+            windowState.userIndex = index;
+            context.globalState.update("windowState", windowState);
         };
 
         // Connect
@@ -403,10 +359,9 @@ export class Project {
 
     /**
      * @brief Reconnect to the project in the current folder
-     * @param sessionUrl Previous session url
      * @param userIndex Previous session user index
     **/
-    private static async reconnect(sessionUrl: string, userIndex: number) : Promise<void> {
+    private static async reconnect(userIndex: number) : Promise<void> {
         // Check if not connected
         if (Project.instance || Project.connecting) {
             throw new Error("Connection failed : already connected");
@@ -419,49 +374,29 @@ export class Project {
             let state: ProjectState;
 
             // Wait for previous host to disconnect
-            let endTime = Date.now() + 5_000;
+            let hostTime = Date.now();
+            let overrideTime = Date.now() + 5_000 + 20_000 * (userIndex - 1);
             while (true) {
                 state = await GoogleDrive.instance!.getState(project);
-                if (userIndex === 1 && state.url === "") {
+                if (state.url === "" && Date.now() >= hostTime) {
                     log("Previous disconnected");
                     break;
                 }
-                if (state.url !== "" && state.url !== sessionUrl) {
+                if (await LiveShare.checkSession(state.url)) {
                     log("New connected");
                     break;
                 }
-                if (Date.now() > endTime) {
+                if (Date.now() > overrideTime) {
                     log("Timeout");
+                    state.url = "";
                     break;
                 }
                 await sleep(1_000);
             }
 
-            if (userIndex === 1 || (state.url !== "" && state.url !== sessionUrl)) {
-                // Connect
-                Project._connecting = false;
-                await Project.connect(project, state);
-            }
-            else {
-                // Wait for new host to connect
-                endTime = Date.now() + (state.url === "" ? 20_000 : 40_000) * (userIndex - 1);
-                while (true) {
-                    state = await GoogleDrive.instance!.getState(project);
-                    if (state.url !== "" && state.url !== sessionUrl) {
-                        log("New connected");
-                        break;
-                    }
-                    if (Date.now() > endTime) {
-                        log("Timeout");
-                        break;
-                    }
-                    await sleep(1_000);
-                }
-
-                // Connect
-                Project._connecting = false;
-                await Project.connect(project, state);
-            }
+            // Connect
+            Project._connecting = false;
+            await Project.connect(project, state);
         }
         finally {
             Project._connecting = false;
@@ -499,11 +434,11 @@ export class Project {
         LiveShare.instance!.onIndexChanged = () => {};
         LiveShare.instance!.onSessionEnd = () => {};
         if (!instance.host) {
-            // Update previous folder
-            const previousFolder = context.globalState.get<PreviousFolder>("previousFolder");
-            if (previousFolder) {
-                previousFolder.disconnected = true;
-                await context.globalState.update("previousFolder", previousFolder);
+            // Update window state
+            const windowState = context.globalState.get<WindowState>("windowState");
+            if (windowState) {
+                windowState.disconnected = true;
+                await context.globalState.update("windowState", windowState);
             }
 
             await instance.fileSystem.clear(instance.config.filesConfig, false);
@@ -557,7 +492,6 @@ export class Project {
             }
             try {
                 await vscode.commands.executeCommand("workbench.action.files.saveAll");
-                await sleep(1000);
                 await this.fileSystem.upload(this.config.filesConfig);
             }
             catch (error: any) {
@@ -604,7 +538,7 @@ export class Project {
         await this.mutex.lock();
         if (!this.mustUpload) {
             this.mutex.unlock();
-            return;
+            throw new Error("Already disconnected");
         }
         try {
             await vscode.commands.executeCommand("workbench.action.files.saveAll");
@@ -770,13 +704,12 @@ export class Config {
 
 
 
-class PreviousFolder {
-    public active: boolean = false;
-    public connected: boolean = false;
+class WindowState {
+    public continued: boolean = false;
     public disconnected: boolean = false;
-    public sessionUrl: string = "";
     public userIndex: number = 0;
     public constructor(
-        public path: string
+        public path: string,
+        public project: Project | undefined = undefined
     ) {}
 }

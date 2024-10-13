@@ -143,4 +143,39 @@ export class LiveShare {
         await waitFor(() => this.liveShare.session.id !== null);
     }
 
+
+    /**
+     * @brief Check if a session is valid
+     * @param sessionUrl The URL of the session
+    **/
+    public static async checkSession(sessionUrl: string) : Promise<boolean> {
+        // Get anonymous access token
+        let response = await fetch("https://prod.liveshare.vsengsaas.visualstudio.com/auth/anonymous-token", { method: "POST" });
+        if (!response.ok) {
+            throw new Error("Failed to verify session : " + response.statusText);
+        }
+        const data: any = await response.json();
+        if (!data.hasOwnProperty("access_token")) {
+            throw new Error("Failed to verify session : no token");
+        }
+        const token = data.access_token;
+        
+        // Check session
+        response = await fetch(`https://prod.liveshare.vsengsaas.visualstudio.com/api/v1.2/workspace/${sessionUrl.substring(55)}/user`, {
+            method: "PUT",
+            headers: {
+                authorization: `Bearer ${token}`
+            }
+        });
+        if (response.status === 200) {
+            return true;
+        }
+        if (response.status === 404) {
+            return false;
+        }
+        else {
+            throw new Error("Failed to verify session : " + response.statusText);
+        }
+    }
+
 }

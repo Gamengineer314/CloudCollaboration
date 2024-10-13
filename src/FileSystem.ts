@@ -137,10 +137,7 @@ export class FileSystem {
             if (this.binaryFiles.has(file)) {
                 content = new TextEncoder().encode(toBase64(content));
             }
-            await vscode.workspace.fs.writeFile(
-                collaborationUri(this.toCollabName(file)),
-                content
-            );
+            await vscode.workspace.fs.writeFile(collaborationUri(this.toCollabName(file)), content);
         }
 
         // Update version
