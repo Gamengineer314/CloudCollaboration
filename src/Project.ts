@@ -55,7 +55,10 @@ export class Project {
     **/
     public static async activate() : Promise<void> {
         const windowState = context.globalState.get<WindowState>("windowState");
-        log(JSON.stringify(windowState));
+        log("Window state: " + (windowState ? 
+            `{ path:${windowState.path} continued:${windowState.continued} disconnected:${windowState.disconnected} userIndex:${windowState.userIndex} project:${windowState.project ? "{}" : "undefined"} }` : 
+            "undefined"
+        ));
         if (windowState && windowState.project) { // Connecting to a project
             if (!windowState.continued) { // Continue connecting
                 windowState.continued = true;
@@ -289,8 +292,12 @@ export class Project {
         vscode.commands.executeCommand("workbench.action.terminal.killAll");
         vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", true);
 
-        // Start upload
-        instance.startUpload();
+        // Start upload after 5 seconds to check for host conflicts
+        setTimeout(() => {
+            if (Project.instance === instance) {
+                instance.startUpload();
+            }
+        }, 5_000);
     }
 
 
@@ -374,7 +381,7 @@ export class Project {
             let state: ProjectState;
 
             // Wait for previous host to disconnect
-            let hostTime = Date.now();
+            let hostTime = Date.now() + 20_000 * (userIndex - 1);
             let overrideTime = Date.now() + 5_000 + 20_000 * (userIndex - 1);
             while (true) {
                 state = await GoogleDrive.instance!.getState(project);
@@ -470,7 +477,7 @@ export class Project {
     private async uploadLoop() : Promise<void> {
         // Check host
         await this.mutex.lock();
-        if (await this.checkHost()) {
+        if (!this.mustUpload || await this.checkHost()) {
             this.mutex.unlock();
             return;
         }
@@ -482,11 +489,7 @@ export class Project {
 
             // Check and upload
             await this.mutex.lock();
-            if (!this.mustUpload) {
-                this.mutex.unlock();
-                break;
-            }
-            if (await this.checkHost()) {
+            if (!this.mustUpload || await this.checkHost()) {
                 this.mutex.unlock();
                 break;
             }
