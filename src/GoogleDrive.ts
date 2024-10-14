@@ -7,7 +7,7 @@ import { Readable } from "stream";
 import { randomString, showErrorWrap } from "./util";
 
 
-const PORT = 31415;
+const PORT = 22606;
 const LOCALHOST = "http://localhost:" + PORT;
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
 

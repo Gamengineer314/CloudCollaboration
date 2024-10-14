@@ -7,6 +7,7 @@ import { fileUri, currentUri, collaborationUri, listFolder, currentListFolder, s
 import { IgnoreStaticDecorationProvider } from "./FileDecoration";
 import { Addon, addons } from "./Addons/Addon";
 import { ConfigEditorProvider } from "./ConfigEditor";
+import { IncomingMessage, Server, ServerResponse, createServer } from "http";
 
 
 const hostDefaultSettings = `{
@@ -23,6 +24,9 @@ const guestDefaultSettings = {
     "terminal.integrated.defaultProfile.osx": "Cloud Collaboration"
 };
 
+const PORT = 18235;
+const LOCALHOST = "http://localhost:" + PORT;
+
 
 export class Project {
 
@@ -36,6 +40,7 @@ export class Project {
     private mustUpload : boolean = false;
     private mutex : Mutex = new Mutex();
     private static clearingGarbage : boolean = false;
+    private static server : Server | undefined = undefined;
 
     private constructor(
         private project: DriveProject,
@@ -54,7 +59,11 @@ export class Project {
      * @brief Activate Project class
     **/
     public static async activate() : Promise<void> {
-        const windowState = context.globalState.get<WindowState>("windowState");
+        let windowState = context.globalState.get<WindowState>("windowState");
+        if (windowState && await Project.checkWindow()) { // Check if other window is open
+            log("Other window");
+            windowState = undefined;
+        }
         log("Window state: " + (windowState ? 
             `{ path:${windowState.path} continued:${windowState.continued} disconnected:${windowState.disconnected} userIndex:${windowState.userIndex} project:${windowState.project ? "{}" : "undefined"} }` : 
             "undefined"
@@ -70,7 +79,10 @@ export class Project {
                     FileSystem.copy(windowState.project.fileSystem, windowState.project.state)
                 );
                 vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
-                    async () => await Project.continueConnect(instance)
+                    async () => {
+                        Project.connectedWindow();
+                        await Project.continueConnect(instance);
+                    }
                 ));
             }
             else { // Connection error -> come back to previous folder
@@ -90,7 +102,9 @@ export class Project {
                     if (currentFolder) { // Reconnect
                         await context.globalState.update("windowState", undefined);
                         vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Reconnecting to project..." }, showErrorWrap(
-                            async () => await Project.reconnect(windowState.userIndex)
+                            async () => {
+                                await Project.reconnect(windowState.userIndex);
+                            }
                         ));
                     }
                     else { // Come back to previous folder
@@ -131,6 +145,7 @@ export class Project {
      * @brief Deactivate Project class
     **/
     public static async deactivate() : Promise<void> {
+        Project.disconnectedWindow();
         if (Project.instance && Project.instance.host) {
             await Project.instance.mutex.lock();
             if (Project.instance.mustUpload) {
@@ -230,6 +245,9 @@ export class Project {
             if (Project.instance || Project.connecting) {
                 throw new Error("Connection failed : already connected");
             }
+            if (await Project.checkWindow()) {
+                throw new Error("Connection failed : multiple windows");
+            }
             Project._connecting = true;
             if (Project.clearingGarbage) {
                 await waitFor(() => !Project.clearingGarbage);
@@ -252,6 +270,7 @@ export class Project {
                     if (host) {
                         // Connect
                         log("Host connect");
+                        Project.connectedWindow();
                         await Project._hostConnect(instance);
                     }
                     else {
@@ -458,6 +477,7 @@ export class Project {
             vscode.commands.executeCommand("workbench.action.terminal.killAll");
             vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
         }
+        Project.disconnectedWindow();
     }
 
     
@@ -677,6 +697,46 @@ export class Project {
                 }
             }
         }
+    }
+
+
+    /**
+     * @brief Check if another window is connected to a project
+    **/
+    private static async checkWindow() : Promise<boolean> {
+        let response;
+        try {
+            response = await fetch(LOCALHOST + "/ping");
+        }
+        catch {
+            return false;
+        }
+        if (response.ok) {
+            return true;
+        }
+        return false;
+    }
+
+
+    /**
+     * @brief Set the current window as connected
+    **/
+    private static connectedWindow() : void {
+        Project.server = createServer(showErrorWrap((request: IncomingMessage, response: ServerResponse) => {
+            if (request.url === "/ping") {
+                response.writeHead(200, { "Content-Type": "text/plain" });
+                response.end("pong");
+            }
+        }));
+        Project.server.listen(PORT);
+    }
+
+
+    /**
+     * @brief Set the current window as disconnected
+    **/
+    private static disconnectedWindow() : void {
+        Project.server?.close();
     }
 
 }
