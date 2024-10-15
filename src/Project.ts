@@ -663,12 +663,16 @@ export class Project {
         try {
             this.config = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(collaborationUri(".collabconfig")))) as Config;
         }
-        catch {
-            log("Create config");
-            const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
-            this.config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.instance!.getEmail()), "Unspecified");
-            await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
-            vscode.window.showInformationMessage("Project configuration file created");
+        catch (error: any) {
+            if (error.code === "FileNotFound") {
+                const project = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
+                this.config = new Config(project.name, new FilesConfig(), new ShareConfig(await GoogleDrive.instance!.getEmail()), "Unspecified");
+                await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
+                vscode.window.showInformationMessage("Configuration file created");
+            }
+            else {
+                throw error;
+            }
         }
 
         // Update configuration editor
