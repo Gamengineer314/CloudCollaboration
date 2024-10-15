@@ -3,6 +3,7 @@ import { randomString, showErrorWrap, logError } from "./util";
 import { Config, Project } from "./Project";
 import { context } from "./extension";
 import { GoogleDrive } from "./GoogleDrive";
+import { addons } from "./Addons/Addon";
 
 
 export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
@@ -257,6 +258,7 @@ export class ConfigEditorProvider implements vscode.CustomTextEditorProvider {
             
             case "project_type":
                 this.config.addon = message.value;
+                addons.get(message.value)?.defaultConfig(this.config);
                 break;
         }
 

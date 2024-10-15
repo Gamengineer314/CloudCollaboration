@@ -300,7 +300,7 @@ export class Project {
         await GoogleDrive.instance!.setState(instance.project, instance.state);
         Project._instance = instance;
         await instance.fileSystem.startSync(true, instance.updateConfig.bind(instance));
-        await instance.updateConfig(true);
+        await instance.updateConfig();
         instance.addon = addons.get(instance.config.addon);
         instance.addon?.activate(instance.host);
         LiveShare.instance!.onSessionEnd = showErrorWrap(async () => await Project.disconnect());
@@ -366,7 +366,7 @@ export class Project {
         // Connect
         Project._instance = instance;
         await instance.fileSystem.startSync(false, instance.updateConfig.bind(instance));
-        await instance.updateConfig(true);
+        await instance.updateConfig();
         instance.addon = addons.get(instance.config.addon);
         instance.addon?.activate(instance.host);
 
@@ -653,7 +653,7 @@ export class Project {
      * @brief Update config from the .collabconfig file if it exists, create a default one otherwise
      * @param first Wether or not it is the first time the config is updated
     **/
-    public async updateConfig(first: boolean = false) : Promise<void> {
+    public async updateConfig() : Promise<void> {
         log("Config updated");
 
         // Read config
@@ -683,7 +683,7 @@ export class Project {
         }
 
         // Update addon
-        if (!first && this.config.addon !== previousAddon) {
+        if (this.config.addon !== previousAddon) {
             if (this.addon) {
                 this.addon.deactivate(this.host);
             }
@@ -691,10 +691,6 @@ export class Project {
             log("Addon changed " + this.config.addon);
             if (this.addon) {
                 this.addon.activate(this.host);
-                if (this.host) {
-                    this.addon.defaultConfig(this.config);
-                    await vscode.workspace.fs.writeFile(collaborationUri(".collabconfig"), new TextEncoder().encode(JSON.stringify(this.config, null, 4)));
-                }
             }
         }
     }
