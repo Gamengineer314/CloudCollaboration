@@ -115,7 +115,12 @@ export class FileSystem {
                 file.name = file.name.substring(0, file.name.length - 9);
                 this.binaryFiles.add(file.name);
             }
-            await vscode.workspace.fs.writeFile(this.projectUri(file.name), file.content);
+            if (file.content === null) {
+                await vscode.workspace.fs.createDirectory(this.projectUri(file.name));
+            }
+            else {
+                await vscode.workspace.fs.writeFile(this.projectUri(file.name), file.content);
+            }
             this.previousDynamic.add(file.name);
         }
         for (const file of new FilesDeserializer(staticFiles)) {
@@ -123,21 +128,32 @@ export class FileSystem {
                 file.name = file.name.substring(0, file.name.length - 9);
                 this.binaryFiles.add(file.name);
             }
-            await vscode.workspace.fs.writeFile(this.projectUri(file.name), file.content);
+            if (file.content === null) { // Directory
+                await vscode.workspace.fs.createDirectory(this.projectUri(file.name));
+            }
+            else { // File
+                await vscode.workspace.fs.writeFile(this.projectUri(file.name), file.content);
+            }
             this.previousStatic.add(file.name);
         }
 
         // Load files in the folder
-        for (const file of await recurListFolder(this.projectFolder)) {
-            let content = await vscode.workspace.fs.readFile(this.projectUri(file));
+        for (const file of await recurListFolder(this.projectFolder, [vscode.FileType.File, vscode.FileType.Directory])) {
+            const type = (await vscode.workspace.fs.stat(this.projectUri(file))).type;
+            let content = type === vscode.FileType.Directory ? null : await vscode.workspace.fs.readFile(this.projectUri(file));
             const state = new FileState();
             state.content = content;
             this.files.set(file, state);
             this.filesContent.set(file, new FileContent(content, false));
-            if (this.binaryFiles.has(file)) {
-                content = new TextEncoder().encode(toBase64(content));
+            if (content === null) {
+                await vscode.workspace.fs.createDirectory(collaborationUri(this.toCollabName(file)));
             }
-            await vscode.workspace.fs.writeFile(collaborationUri(this.toCollabName(file)), content);
+            else {
+                if (this.binaryFiles.has(file)) {
+                    content = new TextEncoder().encode(toBase64(content));
+                }
+                await vscode.workspace.fs.writeFile(collaborationUri(this.toCollabName(file)), content);
+            }
         }
 
         // Update version
@@ -158,10 +174,10 @@ export class FileSystem {
         // Check if files were changed
         let newDynamic = new Set<string>();
         let dynamicChanged = false;
-        let dynamicFiles: [string, Uint8Array][] = [];
+        let dynamicFiles: [string, Uint8Array | null][] = [];
         let newStatic = new Set<string>();
         let staticChanged = false;
-        let staticFiles: [string, Uint8Array][] = [];
+        let staticFiles: [string, Uint8Array | null][] = [];
         for (const [name, content] of this.filesContent) {
             if (match(name, config.ignoreRules)) { // Ignore ignored files
                 continue;
@@ -256,10 +272,20 @@ export class FileSystem {
                 const backupUri = fileUri("Backup" + this.storageProject.version, backupsUri);
                 await vscode.workspace.fs.createDirectory(backupUri);
                 for (const [name, content] of dynamicFiles) {
-                    await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
+                    if (content === null) { // Directory
+                        await vscode.workspace.fs.createDirectory(fileUri(name, backupUri));
+                    }
+                    else { // File
+                        await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
+                    }
                 }
                 for (const [name, content] of staticFiles) {
-                    await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
+                    if (content === null) { // Directory
+                        await vscode.workspace.fs.createDirectory(fileUri(name, backupUri));
+                    }
+                    else { // File
+                        await vscode.workspace.fs.writeFile(fileUri(name, backupUri), content);
+                    }
                 }
             }
         }
@@ -290,7 +316,7 @@ export class FileSystem {
         }
 
         // Delete folders from project folder
-        for (const folder of await recurListFolder(this.projectFolder, vscode.FileType.Directory)) {
+        for (const folder of await recurListFolder(this.projectFolder, [vscode.FileType.Directory])) {
             if ((await vscode.workspace.fs.readDirectory(this.projectUri(folder))).length === 0) {
                 await vscode.workspace.fs.delete(this.projectUri(folder));
             }
@@ -469,7 +495,6 @@ export class FileSystem {
 
             // Get content, file type and wether or not the file was deleted
             let content: Uint8Array | null | undefined;
-            let directory: boolean;
             try {
                 const stat = await vscode.workspace.fs.stat(uri);
                 if (stat.type === vscode.FileType.File) {
@@ -479,12 +504,10 @@ export class FileSystem {
                         content = fromBase64(new TextDecoder().decode(content));
                     }
                     log("Content " + content.length + " " + projectName);
-                    directory = false;
                 }
                 else if (stat.type === vscode.FileType.Directory) {
                     log("Directory " + projectName);
-                    content = undefined;
-                    directory = true;
+                    content = null;
                 }
                 else {
                     throw new Error("Synchronization failed : unsupported file type : " + stat.type);
@@ -492,50 +515,47 @@ export class FileSystem {
             }
             catch { // File was deleted
                 log("Deleted " + projectName);
-                content = null;
-                directory = false;
+                content = undefined;
             }
 
             // Modify project file if content was modified
             if (this.wasModified(state.content, content)) {
                 state.content = content;
-                if (content) {
-                    if (directory) {
-                        log("Create project directory " + projectName);
-                        await vscode.workspace.fs.createDirectory(this.projectUri(projectName));
-                    }
-                    else {
-                        log((create ? "Create" : "Modify") + " project file " + projectName);
-                        if (create) {
-                            create = false;
-                            if (collabName.endsWith(".collab64")) { // Binary file -> add to binary files
-                                this.binaryFiles.add(projectName);
-                            }
-                            else if (isBinary(content)) { // Shouldn't be binary
-                                log("Shouldn't be binary " + projectName);
-                                vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files")
-                                .then(showErrorWrap(async (item: string | undefined) => {
-                                    if (item) {
-                                        await Project.instance?.uploadFiles(collaborationFolder);
-                                    }
-                                }));
-                                state.content = null;
-                                const edit = new vscode.WorkspaceEdit();
-                                edit.deleteFile(collaborationUri(collabName));
-                                await vscode.workspace.applyEdit(edit);
-                                continue;
-                            }
-                        }
-                        await vscode.workspace.fs.writeFile(this.projectUri(projectName), content);
-                        if (projectName.endsWith(".collabconfig")) {
-                            this.onUpdateConfig();
-                        }
-                    }
-                }
-                else {
+                if (content === undefined) {
                     log("Delete project file/directory " + projectName);
                     await vscode.workspace.fs.delete(this.projectUri(projectName), { recursive: true });
                     this.binaryFiles.delete(projectName);
+                }
+                else if (content === null) {
+                    log("Create project directory " + projectName);
+                    await vscode.workspace.fs.createDirectory(this.projectUri(projectName));
+                }
+                else {
+                    log((create ? "Create" : "Modify") + " project file " + projectName);
+                    if (create) {
+                        create = false;
+                        if (collabName.endsWith(".collab64")) { // Binary file -> add to binary files
+                            this.binaryFiles.add(projectName);
+                        }
+                        else if (isBinary(content)) { // Shouldn't be binary
+                            log("Shouldn't be binary " + projectName);
+                            vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files")
+                            .then(showErrorWrap(async (item: string | undefined) => {
+                                if (item) {
+                                    await Project.instance?.uploadFiles(collaborationFolder);
+                                }
+                            }));
+                            state.content = undefined;
+                            const edit = new vscode.WorkspaceEdit();
+                            edit.deleteFile(collaborationUri(collabName));
+                            await vscode.workspace.applyEdit(edit);
+                            continue;
+                        }
+                    }
+                    await vscode.workspace.fs.writeFile(this.projectUri(projectName), content);
+                    if (projectName.endsWith(".collabconfig")) {
+                        this.onUpdateConfig();
+                    }
                 }
             }
             else {
@@ -546,7 +566,7 @@ export class FileSystem {
 
         state.collaborationModifying = false;
         this.filesContent.delete(projectName);
-        if (state.content) {
+        if (state.content !== undefined) {
             this.filesContent.set(projectName, new FileContent(state.content, true));
         }
         log("End collaboration modified " + projectName);
@@ -588,19 +608,16 @@ export class FileSystem {
 
             // Get content, file type and wether or not the file was deleted
             let content: Uint8Array | null | undefined;
-            let directory: boolean;
             try {
                 const stat = await vscode.workspace.fs.stat(uri);
                 if (stat.type === vscode.FileType.File) {
                     log("File " + projectName);
                     content = await vscode.workspace.fs.readFile(uri);
                     log("Content " + content.length + " " + projectName);
-                    directory = false;
                 }
                 else if (stat.type === vscode.FileType.Directory) {
                     log("Directory " + projectName);
-                    content = undefined;
-                    directory = true;
+                    content = null;
                 }
                 else {
                     throw new Error("Synchronization failed : unsupported file type : " + stat.type);
@@ -608,55 +625,52 @@ export class FileSystem {
             }
             catch { // File was deleted
                 log("Deleted " + projectName);
-                content = null;
-                directory = false;
+                content = undefined;
             }
 
             // Modify collaboration file if content was modified
             if (this.wasModified(state.content, content)) {
-                if (content) {
-                    if (directory) {
-                        log("Create collaboration directory " + projectName);
-                        state.content = content;
-                        await vscode.workspace.fs.createDirectory(collaborationUri(collabName));
-                    }
-                    else {
-                        if (!collabName.endsWith(".collab64") && isBinary(content)) { // Binary file -> add to binary files and rename
-                            this.binaryFiles.add(projectName);
-                            log("Delete collaboration file/directory " + projectName);
-                            const edit = new vscode.WorkspaceEdit();
-                            edit.deleteFile(collaborationUri(collabName), { recursive: true });
-                            await vscode.workspace.applyEdit(edit);
-                            collabName += ".collab64";
-                            create = true;
-                        }
-                        if (create) {
-                            log("Create collaboration file " + projectName);
-                            create = false;
-                            state.content = new Uint8Array();
-                            state.continue = true;
-                            const edit = new vscode.WorkspaceEdit();
-                            edit.createFile(collaborationUri(collabName));
-                            await vscode.workspace.applyEdit(edit);
-                        }
-                        else {
-                            log("Modify collaboration file " + projectName);
-                            state.content = content;
-                            const str = collabName.endsWith(".collab64") ? toBase64(content) : new TextDecoder().decode(content);
-                            if (!saveEdit) {
-                                saveEdit = new vscode.WorkspaceEdit();
-                            }
-                            saveEdit.replace(collaborationUri(collabName), new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
-                        }
-                    }
-                }
-                else {
+                if (content === undefined) {
                     log("Delete collaboration file/directory " + projectName);
                     state.content = content;
                     const edit = new vscode.WorkspaceEdit();
                     edit.deleteFile(collaborationUri(collabName), { recursive: true });
                     await vscode.workspace.applyEdit(edit);
                     this.binaryFiles.delete(projectName);
+                }
+                else if (content === null) {
+                    log("Create collaboration directory " + projectName);
+                    state.content = content;
+                    await vscode.workspace.fs.createDirectory(collaborationUri(collabName));
+                }
+                else {
+                    if (!collabName.endsWith(".collab64") && isBinary(content)) { // Binary file -> add to binary files and rename
+                        this.binaryFiles.add(projectName);
+                        log("Delete collaboration file/directory " + projectName);
+                        const edit = new vscode.WorkspaceEdit();
+                        edit.deleteFile(collaborationUri(collabName), { recursive: true });
+                        await vscode.workspace.applyEdit(edit);
+                        collabName += ".collab64";
+                        create = true;
+                    }
+                    if (create) {
+                        log("Create collaboration file " + projectName);
+                        create = false;
+                        state.content = new Uint8Array();
+                        state.continue = true;
+                        const edit = new vscode.WorkspaceEdit();
+                        edit.createFile(collaborationUri(collabName));
+                        await vscode.workspace.applyEdit(edit);
+                    }
+                    else {
+                        log("Modify collaboration file " + projectName);
+                        state.content = content;
+                        const str = collabName.endsWith(".collab64") ? toBase64(content) : new TextDecoder().decode(content);
+                        if (!saveEdit) {
+                            saveEdit = new vscode.WorkspaceEdit();
+                        }
+                        saveEdit.replace(collaborationUri(collabName), new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
+                    }
                 }
             }
             else {
@@ -673,7 +687,7 @@ export class FileSystem {
 
         state.projectModifying = false;
         this.filesContent.delete(projectName);
-        if (state.content) {
+        if (state.content !== undefined) {
             this.filesContent.set(projectName, new FileContent(state.content, true));
         }
         log("End project modified " + projectName);
@@ -834,7 +848,7 @@ class StorageProject {
 
 
 class FileState {
-    public content: Uint8Array | null | undefined = undefined; // null: deleted, undefined: directory or not yet assigned
+    public content: Uint8Array | null | undefined = undefined; // undefined: deleted file/directory, null: existing directory
     public projectModifying: boolean = false;
     public collaborationModifying: boolean = false;
     public continue: boolean = false;
@@ -846,7 +860,7 @@ class FileState {
 
 class FileContent {
     public constructor(
-        public content: Uint8Array,
+        public content: Uint8Array | null,
         public modified: boolean
     ) {}
 }

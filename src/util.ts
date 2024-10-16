@@ -92,21 +92,21 @@ export async function collaborationListFolder() : Promise<[string, vscode.FileTy
 /**
  * @brief Recursively get the names (with sub-folder names) of all files in a folder
  * @param folder The folder
- * @param listType Type of files to list (default: FileType.File)
+ * @param types Types of files to list (default: [FileType.File])
  * @note The names are returned in depth-first order
 **/
-export function recurListFolder(folder: vscode.Uri, listType: vscode.FileType = vscode.FileType.File) : Promise<string[]> {
-    return _recurListFolder(folder || currentFolder, listType);
+export function recurListFolder(folder: vscode.Uri, types: vscode.FileType[] = [vscode.FileType.File]) : Promise<string[]> {
+    return _recurListFolder(folder || currentFolder, types);
 }
 
-async function _recurListFolder(folder: vscode.Uri, listType: vscode.FileType = vscode.FileType.File, subfolder: string = "") : Promise<string[]> {
+async function _recurListFolder(folder: vscode.Uri, types: vscode.FileType[], subfolder: string = "") : Promise<string[]> {
     let fileNames = [];
     const files = await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(folder, subfolder));
     for (const [name, type] of files) {
         if (type === vscode.FileType.Directory) {
-            fileNames.push(...await _recurListFolder(folder, listType, subfolder + "/" + name));
+            fileNames.push(...await _recurListFolder(folder, types, subfolder + "/" + name));
         }
-        if (type === listType) {
+        if (types.includes(type)) {
             fileNames.push(subfolder + "/" + name);
         }
     }
@@ -116,21 +116,21 @@ async function _recurListFolder(folder: vscode.Uri, listType: vscode.FileType = 
 
 /**
  * @brief Recursively get the names (with sub-folder names) of all files in the current folder
- * @param listType Type of files to list
+ * @param types Types of files to list (default: [FileType.File])
  * @note If listType = FileType.Directory, the name of a folder is always given before the name of all its parent folders
 **/
-export async function currentRecurListFolder(listType: vscode.FileType = vscode.FileType.File) : Promise<string[]> {
-    return await recurListFolder(currentFolder, listType);
+export async function currentRecurListFolder(types: vscode.FileType[] = [vscode.FileType.File]) : Promise<string[]> {
+    return await recurListFolder(currentFolder, types);
 }
 
 
 /**
  * @brief Recursively get the names (with sub-folder names) of all files in the collaboration folder
- * @param listType Type of files to list
+ * @param types Types of files to list (default: [FileType.File])
  * @note If listType = FileType.Directory, the name of a folder is always given before the name of all its parent folders
 **/
-export async function collaborationRecurListFolder(listType: vscode.FileType = vscode.FileType.File) : Promise<string[]> {
-    return await recurListFolder(collaborationFolder, listType);
+export async function collaborationRecurListFolder(types: vscode.FileType[] = [vscode.FileType.File]) : Promise<string[]> {
+    return await recurListFolder(collaborationFolder, types);
 }
 
 
