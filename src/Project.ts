@@ -259,9 +259,12 @@ export class Project {
                 const driveProject = project || JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(currentUri(".collablaunch")))) as DriveProject;
                 const projectState = state || await GoogleDrive.instance!.getState(driveProject);
                 let host = projectState.url === "";
-                if (!host && !await LiveShare.checkSession(projectState.url)) {
-                    host = true;
-                    log("Override");
+                if (!host) {
+                    log("Url " + projectState.url);
+                    if (!await LiveShare.checkSession(projectState.url)) {
+                        host = true;
+                        log("Override");
+                    }
                 }
                 const fileSystem = await FileSystem.init(driveProject, projectState);
                 const instance = new Project(driveProject, host, projectState, fileSystem);
@@ -297,6 +300,7 @@ export class Project {
         await instance.fileSystem.download();
         await LiveShare.instance!.createSession();
         instance.state.url = LiveShare.instance!.sessionUrl!;
+        log("Url " + instance.state.url);
         await GoogleDrive.instance!.setState(instance.project, instance.state);
         Project._instance = instance;
         await instance.fileSystem.startSync(true, instance.updateConfig.bind(instance));
