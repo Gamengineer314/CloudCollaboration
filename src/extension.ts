@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
 import { Project } from "./Project";
-import { LiveShare } from "./LiveShare";
 import { showErrorWrap } from "./util";
 import { ProjectProfileProvider } from "./ProjectProfile";
 import { BinaryFileEditorProvider } from "./BinaryFileEditor";

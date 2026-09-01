@@ -95,8 +95,7 @@ export class Project {
         }
  
         // Check if project folder exists
-        try {
-            await vscode.workspace.fs.stat(projectFolder);
+        if (await Project.hasProject()) {
             log("Has project");
             vscode.commands.executeCommand("setContext", "cloud-collaboration.hasProject", true);
 
@@ -109,7 +108,6 @@ export class Project {
                 }));
             }
         }
-        catch {}
     }
 
 
@@ -138,8 +136,7 @@ export class Project {
         if (currentFiles.length > 0) {
             throw new Error("Can't join project : workspace must be empty");
         }
-        const projectFiles = await projectListFolder();
-        if (projectFiles.length > 0) {
+        if (await Project.hasProject()) {
             throw new Error("Can't join project : a project already exists in this workspace");
         }
 
@@ -542,6 +539,20 @@ export class Project {
     **/
     private static disconnectedWindow() : void {
         Project.server?.close();
+    }
+
+    
+    /**
+     * @brief Check if the project folder exists
+    **/
+    public static async hasProject() : Promise<boolean> {
+        try {
+            await vscode.workspace.fs.stat(projectFolder);
+            return true;
+        }
+        catch {
+            return false;
+        }
     }
 
 }

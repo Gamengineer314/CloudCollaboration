@@ -161,7 +161,6 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "googleapis": "^142.0.0",
     "vsls": "^1.0.4753"
   },
   "extensionDependencies": [
