@@ -3,7 +3,7 @@
   "displayName": "Cloud Collaboration",
   "description": "Real-time collaboration with cloud storage",
   "version": "1.1.1",
-  "icon":  "media/icon_high.png",
+  "icon":  "media/icon.png",
   "publisher": "gamengineer314",
   "engines": {
     "vscode": "^1.92.0"
@@ -18,119 +18,98 @@
   "contributes": {
     "commands": [
       {
-        "command": "cloud-collaboration.authenticate",
-        "title": "Cloud Collaboration: Authenticate"
-      },
-      {
-        "command": "cloud-collaboration.unauthenticate",
-        "title": "Cloud Collaboration: Unauthenticate"
-      },
-      {
-        "command": "cloud-collaboration.createProject",
-        "title": "Cloud Collaboration: Create Project"
-      },
-      {
         "command": "cloud-collaboration.joinProject",
-        "title": "Cloud Collaboration: Join Project"
+        "title": "Join Project",
+        "category": "Cloud Collaboration"
+      },
+      {
+        "command": "cloud-collaboration.removeProject",
+        "title": "Remove Project",
+        "category": "Cloud Collaboration"
       },
       {
         "command": "cloud-collaboration.connect",
-        "title": "Cloud Collaboration: Connect"
+        "title": "Connect",
+        "category": "Cloud Collaboration"
       },
       {
         "command": "cloud-collaboration.disconnect",
-        "title": "Cloud Collaboration: Disconnect"
-      },
-      {
-        "command": "cloud-collaboration.downloadProject",
-        "title": "Cloud Collaboration: Download Project"
+        "title": "Disconnect",
+        "category": "Cloud Collaboration"
       },
       {
         "command": "cloud-collaboration.newTerminal",
-        "title": "Cloud Collaboration: New Terminal"
+        "title": "New Terminal",
+        "category": "Cloud Collaboration"
       },
       {
         "command": "cloud-collaboration.uploadFiles",
-        "title": "Cloud Collaboration: Upload Files"
+        "title": "Upload Files",
+        "category": "Cloud Collaboration"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "cloud-collaboration",
+        "label": "Cloud Collaboration"
       }
     ],
     "menus": {
       "commandPalette": [
         {
-          "command": "cloud-collaboration.authenticate",
-          "when": "!cloud-collaboration.authenticated"
+          "command": "cloud-collaboration.joinProject",
+          "when": "!cloud-collaboration.hasProject && !cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
-          "command": "cloud-collaboration.unauthenticate",
-          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected"
+          "command": "cloud-collaboration.removeProject",
+          "when": "cloud-collaboration.hasProject && !cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.connect",
-          "when": "cloud-collaboration.authenticated && !cloud-collaboration.connected && cloud-collaboration.liveShareAvailable && workspaceFolderCount == 1"
+          "when": "cloud-collaboration.hasProject && !cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.disconnect",
-          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+          "when": "cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.newTerminal",
-          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
-        },
-        {
-          "command": "cloud-collaboration.createProject",
-          "when": "!cloud-collaboration.connected && workspaceFolderCount == 1"
-        },
-        {
-          "command": "cloud-collaboration.joinProject",
-          "when": "!cloud-collaboration.connected && workspaceFolderCount == 1"
-        },
-        {
-          "command": "cloud-collaboration.downloadProject",
-          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+          "when": "cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.uploadFiles",
-          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+          "when": "cloud-collaboration.connected && workspaceFolderCount == 1"
         }
       ],
       "explorer/context": [
         {
-          "command": "cloud-collaboration.createProject",
-          "when": "!cloud-collaboration.connected && workspaceFolderCount == 1"
-        },
+          "submenu": "cloud-collaboration"
+        }
+      ],
+      "cloud-collaboration": [
         {
           "command": "cloud-collaboration.joinProject",
-          "when": "!cloud-collaboration.connected && workspaceFolderCount == 1"
+          "when": "!cloud-collaboration.hasProject && !cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
-          "command": "cloud-collaboration.downloadProject",
-          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+          "command": "cloud-collaboration.removeProject",
+          "when": "cloud-collaboration.hasProject && !cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.connect",
+          "when": "cloud-collaboration.hasProject && !cloud-collaboration.connected && workspaceFolderCount == 1"
+        },
+        {
+          "command": "cloud-collaboration.disconnect",
+          "when": "cloud-collaboration.connected && workspaceFolderCount == 1"
         },
         {
           "command": "cloud-collaboration.uploadFiles",
-          "when": "cloud-collaboration.authenticated && cloud-collaboration.connected && workspaceFolderCount == 1"
+          "when": "cloud-collaboration.connected && workspaceFolderCount == 1"
         }
       ]
     },
     "customEditors": [
-      {
-        "viewType": "cloud-collaboration.launchEditor",
-        "displayName": "Cloud Collaboration Launch Editor",
-        "selector": [
-          {
-            "filenamePattern": "*.collablaunch"
-          }
-        ]
-      },
-      {
-        "viewType": "cloud-collaboration.configEditor",
-        "displayName": "Cloud Collaboration Config Editor",
-        "selector": [
-          {
-            "filenamePattern": "*.collabconfig"
-          }
-        ]
-      },
       {
         "viewType": "cloud-collaboration.binaryFileEditor",
         "displayName": "Cloud Collaboration Binary File Editor",
@@ -148,55 +127,7 @@
           "id": "cloud-collaboration.terminal"
         }
       ]
-    },
-    "colors": [
-      {
-        "id": "cloudCollaboration.ignore",
-        "description": "%colors.ignored%",
-        "defaults": {
-          "light": "#8E8E90",
-          "dark": "#8C8C8C",
-          "highContrast": "#A7A8A9",
-          "highContrastLight": "#8e8e90"
-        }
-      },
-      {
-        "id": "cloudCollaboration.static",
-        "description": "%colors.static%",
-        "defaults": {
-          "light": "#cc6500",
-          "dark": "#ffc39e",
-          "highContrast": "#FF8800",
-          "highContrastLight": "#FF8800"
-        }
-      },
-      {
-        "id": "cloudCollaboration.special",
-        "description": "%colors.special%",
-        "defaults": {
-          "light": "#007acc",
-          "dark": "#75b9f0",
-          "highContrast": "#007acc",
-          "highContrastLight": "#007acc"
-        }
-      }
-    ],
-    "languages": [
-			{
-				"id": "cloud-collaboration",
-				"aliases": [
-					"Cloud Collaboration"
-				],
-				"extensions": [
-					".collabconfig",
-					".collablaunch"
-				],
-				"icon": {
-					"dark": "media/icon_low.png",
-					"light": "media/icon_low.png"
-				}
-			}
-		]
+    }
   },
   "repository": {
     "type": "git",

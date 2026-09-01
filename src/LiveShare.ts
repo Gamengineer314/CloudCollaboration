@@ -5,19 +5,12 @@ import { showErrorWrap, waitFor } from "./util";
 
 export class LiveShare {
 
-    private static _instance : LiveShare | undefined = undefined;
-    public static get instance() : LiveShare | undefined { return LiveShare._instance; }
-
-    private liveShare : vlsl.LiveShare;
     private sessionId : string | null = null;
     private userIndex : number = 0;
-    private _onIndexChanged : (userIndex: number) => void | Promise<void> = () => {};
-    private _onSessionEnd : () => void | Promise<void> = () => {};
-    private disposables : vscode.Disposable[] = [];
+    private changePeerDisposable : vscode.Disposable | undefined = undefined;
+    private changeSessionDisposable : vscode.Disposable | undefined = undefined;
 
-    private constructor(liveShare: vlsl.LiveShare) {
-        this.liveShare = liveShare;
-    }
+    private constructor(private liveShare: vlsl.LiveShare) {}
 
 
     /**
@@ -29,75 +22,52 @@ export class LiveShare {
 
 
     /**
-     * @brief
-     * Register a callback to be called when the user index changes.
-     * Indices are always consecutive and start at 0 for the host.
+     * @brief Get a LiveShare instance
     **/
-    public set onIndexChanged(onIndexChanged: (index: number) => void | Promise<void>) {
-        this._onIndexChanged = onIndexChanged;
-        onIndexChanged(this.userIndex);
-    };
-
-
-    /**
-     * @brief Register a callback to be called when the session ends
-    **/
-    public set onSessionEnd(onSessionEnd: () => void | Promise<void>) {
-        this._onSessionEnd = onSessionEnd;
-    }
-
-
-    /**
-     * @brief Activate LiveShare class if it wasn't already
-    **/
-    public static async activate() : Promise<void> {
-        // Check instance
-        if (LiveShare._instance) {
-            return;
-        }
-
-        // Get Live Share API if available
+    public static async get() : Promise<LiveShare> {
         const liveShare = await vlsl.getApi("cloud-collaboration");
         if (!liveShare) {
             throw new Error("LiveShare initialization failed : Live Share not available");
         }
-
-        // Update sessionId and userIndex
-        const instance = new LiveShare(liveShare);
-        instance.disposables.push(liveShare.onDidChangePeers(showErrorWrap(_ => {
-            if (instance.liveShare.session.id !== null) {
-                const oldIndex = instance.userIndex;
-                instance.userIndex = instance.liveShare.peers
-                    .sort((p1, p2) => p1.peerNumber - p2.peerNumber)
-                    .findIndex(peer => peer.peerNumber === instance.liveShare.session.peerNumber);
-                if (oldIndex !== instance.userIndex) {
-                    instance._onIndexChanged(instance.userIndex);
-                }
-            }
-        })));
-        instance.disposables.push(liveShare.onDidChangeSession(showErrorWrap(_ => {
-            if (instance.liveShare.session.id === null && instance.sessionId !== null) {
-                instance._onSessionEnd();
-            }
-            instance.sessionId = instance.liveShare.session.id;
-        })));
-
-        LiveShare._instance = instance;
-        vscode.commands.executeCommand("setContext", "cloud-collaboration.liveShareAvailable", true);
+        return new LiveShare(liveShare);
     }
 
 
     /**
-     * @brief Deactivate LiveShare class
+     * @brief Register callbacks
+     * @param onIndexChanged
+     * Called when the user index changes.
+     * Indices are always consecutive and start at 0 for the host.
+     * @param onSessionEnd Called when the session ends
     **/
-    public static async deactivate() : Promise<void> {
-        if (LiveShare._instance) {
-            for (const disposable of LiveShare._instance.disposables) {
-                disposable.dispose();
+    public setCallbacks(onIndexChanged: (userIndex: number) => void | Promise<void> = () => {}, onSessionEnd : () => void | Promise<void> = () => {}) {
+        this.changePeerDisposable = this.liveShare.onDidChangePeers(showErrorWrap(_ => {
+            if (this.liveShare.session.id !== null) {
+                const oldIndex = this.userIndex;
+                this.userIndex = this.liveShare.peers
+                    .sort((p1, p2) => p1.peerNumber - p2.peerNumber)
+                    .findIndex(peer => peer.peerNumber === this.liveShare.session.peerNumber);
+                if (oldIndex !== this.userIndex) {
+                    onIndexChanged(this.userIndex);
+                }
             }
-            LiveShare._instance = undefined;
-            vscode.commands.executeCommand("setContext", "cloud-collaboration.liveShareAvailable", false);
-        }
+        }));
+        this.changeSessionDisposable = this.liveShare.onDidChangeSession(showErrorWrap(_ => {
+            if (this.liveShare.session.id === null && this.sessionId !== null) {
+                onSessionEnd();
+            }
+            this.sessionId = this.liveShare.session.id;
+        }));
+        onIndexChanged(this.userIndex);
+    }
+
+
+    /**
+     * @brief Dispose callbacks if [setCallbacks] was called
+    **/
+    public async disposeCallbacks() : Promise<void> {
+        this.changePeerDisposable?.dispose();
+        this.changeSessionDisposable?.dispose();
     }
     
     

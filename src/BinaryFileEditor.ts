@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { collaborationName, logError } from "./util";
+import { currentName, inCurrent, logError } from "./util";
 import { Project } from "./Project";
 
 
@@ -7,25 +7,20 @@ export class BinaryFileEditorProvider implements vscode.CustomTextEditorProvider
 
     // Called when our custom editor is opened.
     public async resolveCustomTextEditor(document: vscode.TextDocument) : Promise<void> {
-        // Check if connected
+        // Checks
         if (!Project.instance) {
             logError("Binary file failed to open : not connected");
             vscode.commands.executeCommand("workbench.action.closeActiveEditor");
             return;
         }
-
-        // Get the binary file path
-        const collaborationFileName = collaborationName(document.uri);
-        if (collaborationFileName === "") {
+        if (!inCurrent(document.uri)) {
             logError("Binary file failed to open : not in the Project folder");
             vscode.commands.executeCommand("workbench.action.closeActiveEditor");
             return;
         }
 
-        // Close the editor
+        // Close this editor and open the actual file
         await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
-
-        // Open the binary file
-        await Project.instance.openProjectFile(collaborationFileName);
+        await Project.instance.openProjectFile(currentName(document.uri));
     }
 }
