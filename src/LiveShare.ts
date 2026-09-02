@@ -111,6 +111,7 @@ export class LiveShare {
     **/
     public async waitForSession() : Promise<void> {
         await waitFor(() => this.liveShare.session.id !== null);
+        this.sessionId = this.liveShare.session.id;
     }
 
 

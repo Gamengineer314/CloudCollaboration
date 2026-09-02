@@ -7,6 +7,7 @@ import { BinaryFileEditorProvider } from "./BinaryFileEditor";
 
 export let context : vscode.ExtensionContext;
 export let currentFolder: vscode.Uri;
+export let collaborationFolder: vscode.Uri;
 export let projectFolder: vscode.Uri;
 export let output: vscode.LogOutputChannel;
 
@@ -16,6 +17,7 @@ export async function activate(_context: vscode.ExtensionContext) {
 	context = _context;
     if (vscode.workspace.workspaceFolders && context.storageUri) {
         currentFolder = vscode.workspace.workspaceFolders[0].uri;
+        collaborationFolder = vscode.Uri.joinPath(currentFolder, "Project");
         projectFolder = vscode.Uri.joinPath(context.storageUri, "Project");
     }
     output = vscode.window.createOutputChannel("Cloud Collaboration", { log: true });

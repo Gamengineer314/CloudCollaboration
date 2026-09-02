@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { currentFolder, projectFolder, output } from "./extension";
+import { collaborationFolder, projectFolder, output } from "./extension";
 
 
 /**
@@ -17,28 +17,28 @@ export function randomString(size: number) : string {
 
 
 /**
- * @brief Get the URI of a file in the current folder
+ * @brief Get the URI of a file in the collaboration folder
  * @param fileName Name of the file
 **/
-export function currentUri(fileName: string) : vscode.Uri {
-    return vscode.Uri.joinPath(currentFolder, fileName);
+export function collaborationUri(fileName: string) : vscode.Uri {
+    return vscode.Uri.joinPath(collaborationFolder, fileName);
 }
 
 /**
- * @brief Get the name of a file in the current folder
+ * @brief Get the name of a file in the collaboration folder
  * @param uri URI of the file
 **/
-export function currentName(uri: vscode.Uri) : string {
-    return uri.path.substring(currentFolder.path.length);
+export function collaborationName(uri: vscode.Uri) : string {
+    return uri.path.substring(collaborationFolder.path.length);
 }
 
 /**
- * Check whether a file is in the current folder
+ * Check whether a file is in the collaboration folder
  * @param uri URI of the file
- * @returns Whether the file is in the current folder
+ * @returns Whether the file is in the collaboration folder
 **/
-export function inCurrent(uri: vscode.Uri) : boolean {
-    return uri.path.startsWith(currentFolder.path);
+export function inCollaboration(uri: vscode.Uri) : boolean {
+    return uri.path.startsWith(collaborationFolder.path);
 }
 
 
@@ -60,31 +60,13 @@ export function projectName(uri: vscode.Uri) : string {
 
 
 /**
- * @brief List the files in the current folder
- * @returns List of file names and types
-**/
-export async function currentListFolder() : Promise<[string, vscode.FileType][]> {
-    return await vscode.workspace.fs.readDirectory(currentFolder);
-}
-
-
-/**
- * @brief List the files in the project folder
- * @returns List of file names and types
-**/
-export async function projectListFolder() : Promise<[string, vscode.FileType][]> {
-    return await vscode.workspace.fs.readDirectory(projectFolder);
-}
-
-
-/**
  * @brief Recursively get the names (with sub-folder names) of all files in a folder
  * @param folder The folder
  * @param types Types of files to list (default: [FileType.File])
  * @note The names are returned in depth-first order
 **/
 export function recurListFolder(folder: vscode.Uri, types: vscode.FileType[] = [vscode.FileType.File]) : Promise<string[]> {
-    return _recurListFolder(folder || currentFolder, types);
+    return _recurListFolder(folder || collaborationFolder, types);
 }
 
 async function _recurListFolder(folder: vscode.Uri, types: vscode.FileType[], subfolder: string = "") : Promise<string[]> {
@@ -103,12 +85,12 @@ async function _recurListFolder(folder: vscode.Uri, types: vscode.FileType[], su
 
 
 /**
- * @brief Recursively get the names (with sub-folder names) of all files in the current folder
+ * @brief Recursively get the names (with sub-folder names) of all files in the collaboration folder
  * @param types Types of files to list (default: [FileType.File])
  * @note If listType = FileType.Directory, the name of a folder is always given before the name of all its parent folders
 **/
-export async function currentRecurListFolder(types: vscode.FileType[] = [vscode.FileType.File]) : Promise<string[]> {
-    return await recurListFolder(currentFolder, types);
+export async function collaborationRecurListFolder(types: vscode.FileType[] = [vscode.FileType.File]) : Promise<string[]> {
+    return await recurListFolder(collaborationFolder, types);
 }
 
 
@@ -119,19 +101,6 @@ export async function currentRecurListFolder(types: vscode.FileType[] = [vscode.
 **/
 export async function projectRecurListFolder(types: vscode.FileType[] = [vscode.FileType.File]) : Promise<string[]> {
     return await recurListFolder(projectFolder, types);
-}
-
-
-/**
- * @brief Delete a list of files
- * @param files List of file names and types
-**/
-export async function deleteFiles(files: [string, vscode.FileType][]) : Promise<void> {
-    const deleteEdit = new vscode.WorkspaceEdit();
-    for (const file of files) {
-        deleteEdit.deleteFile(currentUri(file[0]), { recursive: true });
-    }
-    await vscode.workspace.applyEdit(deleteEdit);
 }
 
 

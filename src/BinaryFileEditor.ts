@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { currentName, inCurrent, logError } from "./util";
+import { collaborationName, inCollaboration, logError } from "./util";
 import { Project } from "./Project";
 
 
@@ -13,7 +13,7 @@ export class BinaryFileEditorProvider implements vscode.CustomTextEditorProvider
             vscode.commands.executeCommand("workbench.action.closeActiveEditor");
             return;
         }
-        if (!inCurrent(document.uri)) {
+        if (!inCollaboration(document.uri)) {
             logError("Binary file failed to open : not in the Project folder");
             vscode.commands.executeCommand("workbench.action.closeActiveEditor");
             return;
@@ -21,6 +21,6 @@ export class BinaryFileEditorProvider implements vscode.CustomTextEditorProvider
 
         // Close this editor and open the actual file
         await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
-        await Project.instance.openProjectFile(currentName(document.uri));
+        await Project.instance.openProjectFile(collaborationName(document.uri));
     }
 }

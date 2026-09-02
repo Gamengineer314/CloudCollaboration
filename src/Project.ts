@@ -1,18 +1,18 @@
 import * as vscode from "vscode";
 import { LiveShare } from "./LiveShare";
 import { FileSynchronizer } from "./FileSynchronizer";
-import { currentFolder, context, projectFolder } from "./extension";
-import { showErrorWrap, sleep, currentName, log, logError, inCurrent, Mutex, currentListFolder, projectUri, projectListFolder, currentUri, deleteFiles } from "./util";
+import { currentFolder, collaborationFolder, projectFolder, context } from "./extension";
+import { showErrorWrap, sleep, collaborationName, inCollaboration, log, logError, Mutex, projectUri } from "./util";
 import { IncomingMessage, Server, ServerResponse, createServer } from "http";
 
 
-const hostDefaultSettings = `{
+const hostDefaultSettings = {
     "liveshare.autoShareTerminals": false,
     "files.saveConflictResolution": "overwriteFileOnDisk",
     "terminal.integrated.defaultProfile.linux": "Cloud Collaboration",
     "terminal.integrated.defaultProfile.windows": "Cloud Collaboration",
     "terminal.integrated.defaultProfile.osx": "Cloud Collaboration"
-}`;
+};
 
 const guestDefaultSettings = {
     "terminal.integrated.defaultProfile.linux": "Cloud Collaboration",
@@ -52,10 +52,9 @@ export class Project {
             log("Other window");
             windowState = undefined;
         }
-
         
         if (windowState) {
-            log("Window state: " + windowState);
+            log("Window state: " + JSON.stringify(windowState));
             if (!windowState.connected) { // Connecting to a project
                 windowState.connected = true;
                 await context.globalState.update("windowState", windowState);
@@ -67,16 +66,11 @@ export class Project {
                 ));
             }
             else {
-                if (windowState.disconnected) { // Come back to previous folder
-                    log("Come back");
-                    await context.globalState.update("windowState", undefined);
-                    vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(windowState.path), false);
-                }
-                else if (!currentFolder) { // Host disconnected -> come back to previous folder
+                if (!windowState.disconnected && !currentFolder) { // Host disconnected -> come back to previous folder
                     log("Reconnection");
                     vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(windowState.path), false);
                 }
-                else if (windowState.path === currentFolder.path) { // Reconnect after coming back
+                else if (!windowState.disconnected && windowState.path === currentFolder.path) { // Reconnect after coming back
                     await context.globalState.update("windowState", undefined);
                     vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Reconnecting to project..." }, showErrorWrap(
                         async () => {
@@ -85,27 +79,20 @@ export class Project {
                     ));
                 }
                 else {
-                    logError("Not disconnected");
+                    log("Come back");
                     await context.globalState.update("windowState", undefined);
+                    vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.parse(windowState.path), false);
                 }
             }
         }
         else {
             log("No state");
-        }
- 
-        // Check if project folder exists
-        if (await Project.hasProject()) {
-            log("Has project");
-            vscode.commands.executeCommand("setContext", "cloud-collaboration.hasProject", true);
 
-            // Clear garbage files if any
-            const files = await currentListFolder();
-            if (files.length > 0) {
-                await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Disconnecting from project..." }, showErrorWrap(async () => {
-                    log("Clear garbage");
-                    await deleteFiles(files);
-                }));
+            // Check if project folder exists
+            if (await Project.hasProject()) {
+                log("Has project");
+                vscode.commands.executeCommand("setContext", "cloud-collaboration.hasProject", true);
+                await vscode.workspace.fs.delete(collaborationFolder, { recursive: true }); // Clear garbage files if any
             }
         }
     }
@@ -132,7 +119,7 @@ export class Project {
     **/
     public static async joinProject() : Promise<void> {
         // Check if folders are empty
-        const currentFiles = await currentListFolder();
+        const currentFiles = await vscode.workspace.fs.readDirectory(currentFolder);
         if (currentFiles.length > 0) {
             throw new Error("Can't join project : workspace must be empty");
         }
@@ -145,8 +132,7 @@ export class Project {
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Joining project..." }, showErrorWrap(async () => {
             log("Join project");
             // TODO: join git project
-            await vscode.workspace.fs.createDirectory(projectUri(".vscode"));
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(projectFolder, ".vscode", "settings.json"), new TextEncoder().encode(hostDefaultSettings));
+            vscode.workspace.fs.createDirectory(projectFolder);
             vscode.commands.executeCommand("setContext", "cloud-collaboration.hasProject", true);
             vscode.window.showInformationMessage("Project joined successfully");
         }));
@@ -185,8 +171,8 @@ export class Project {
             Project.connecting = true;
             try {
                 // Get project information
-                const url = ""; // TODO: get URL
-                let host = url === "";
+                const url = "https://prod.liveshare.vsengsaas.visualstudio.com/join?D5FC8D94A867CBAABA97307588F018D93438"; // TODO: get URL
+                let host = false;
                 if (!host) {
                     log("Url " + url);
                     if (!await LiveShare.checkSession(url)) {
@@ -239,10 +225,16 @@ export class Project {
         const url = liveShare.sessionUrl!;
         log("Url " + url);
         // TODO: set URL
-        liveShare.setCallbacks(undefined, showErrorWrap(async () => await Project.disconnect()));
-        await synchronizer.loadCurrent();
+        liveShare.setCallbacks(undefined, showErrorWrap(Project.disconnect));
+        await synchronizer.loadCollaboration();
         await synchronizer.startSync(true);
         instance.startUpload();
+
+        // Default settings
+        const configuration = vscode.workspace.getConfiguration();
+        for (const [key, value] of Object.entries(hostDefaultSettings)) {
+            await configuration.update(key, value, vscode.ConfigurationTarget.Workspace);
+        }
 
         // Setup editor
         vscode.commands.executeCommand("workbench.action.closeAllEditors");
@@ -283,22 +275,25 @@ export class Project {
 
         // Wait until the Live Share session is ready
         await liveShare.waitForSession();
-        // TODO: wait until files appear
 
         // Update previous folder
         const windowState = context.globalState.get<WindowState>("windowState")!;
-        liveShare.setCallbacks((index) => {
+        liveShare.setCallbacks(showErrorWrap((index) => {
             windowState.userIndex = index;
             context.globalState.update("windowState", windowState);
-        }, undefined);
+        }), showErrorWrap(() => {
+            windowState.disconnected = true;
+            context.globalState.update("windowState", windowState);
+        }));
 
         // Connect
         await synchronizer.loadProject();
-        await synchronizer.startSync(false);
+        //await synchronizer.startSync(false);
 
         // Default settings
+        const configuration = vscode.workspace.getConfiguration();
         for (const [key, value] of Object.entries(guestDefaultSettings)) {
-            await vscode.workspace.getConfiguration().update(key, value, vscode.ConfigurationTarget.Workspace);
+            await configuration.update(key, value, vscode.ConfigurationTarget.Workspace);
         }
 
         // Setup editor
@@ -363,6 +358,12 @@ export class Project {
                 await instance.stopUpload();
             }
             await Project._disconnect();
+            if (instance.host) {
+                // Setup editor
+                vscode.commands.executeCommand("workbench.action.closeAllEditors");
+                vscode.commands.executeCommand("workbench.action.terminal.killAll");
+                vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
+            }
         }));
     }
 
@@ -375,7 +376,7 @@ export class Project {
             instance.fileSynchronizer.stopSync();
             instance.liveShare.disposeCallbacks();
             if (!instance.host) {
-                await instance.fileSynchronizer.clearProject();
+                await vscode.workspace.fs.delete(projectFolder, { recursive: true });
 
                 // Update window state
                 const windowState = context.globalState.get<WindowState>("windowState");
@@ -386,12 +387,12 @@ export class Project {
             }
             await instance.liveShare.exitSession();
             if (instance.host) {
-                await instance.fileSynchronizer.clearCurrent();
-
-                // Setup editor
-                vscode.commands.executeCommand("workbench.action.closeAllEditors");
-                vscode.commands.executeCommand("workbench.action.terminal.killAll");
-                vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
+                // Remove files
+                await vscode.workspace.fs.delete(collaborationFolder, { recursive: true });
+                const configuration = vscode.workspace.getConfiguration();
+                for (const key of Object.keys(hostDefaultSettings)) {
+                    await configuration.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+                }
             }
         }
         Project.disconnectedWindow();
@@ -473,8 +474,8 @@ export class Project {
 
         // Get the name of the folder
         let name: string;
-        if (uri && inCurrent(uri)) {
-            name = currentName(uri);
+        if (uri && inCollaboration(uri)) {
+            name = collaborationName(uri);
             const stat = await vscode.workspace.fs.stat(uri);
             if (stat.type !== vscode.FileType.Directory) {
                 name = name.substring(0, name.lastIndexOf("/"));
