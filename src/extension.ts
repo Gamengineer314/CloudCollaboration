@@ -3,6 +3,7 @@ import { Project } from "./Project";
 import { showErrorWrap } from "./util";
 import { ProjectProfileProvider } from "./ProjectProfile";
 import { BinaryFileEditorProvider } from "./BinaryFileEditor";
+import { IgnoredDecorationProvider } from "./IgnoredDecoration";
 
 
 export let context : vscode.ExtensionContext;
@@ -44,6 +45,10 @@ export async function activate(_context: vscode.ExtensionContext) {
     // Register editors
     const binaryFileEditor = vscode.window.registerCustomEditorProvider("cloud-collaboration.binaryFileEditor", new BinaryFileEditorProvider());
     context.subscriptions.push(binaryFileEditor);
+
+    // Register file decorations
+    const ignoredDecorationProvider = vscode.window.registerFileDecorationProvider(new IgnoredDecorationProvider());
+    context.subscriptions.push(ignoredDecorationProvider);
 
     // Register terminal profiles
     const terminal = vscode.window.registerTerminalProfileProvider("cloud-collaboration.terminal", new ProjectProfileProvider());

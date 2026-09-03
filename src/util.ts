@@ -58,6 +58,18 @@ export function projectName(uri: vscode.Uri) : string {
     return uri.path.substring(projectFolder.path.length);
 }
 
+/**
+ * @brief Get the name of a file in the project folder from its name in the collaboration folder
+ * @param name Name of the file in the collaboration folder
+ * @returns Name of the file in the project folder
+**/
+export function toProjectName(name: string) {
+    if (name.endsWith(".collab64")) {
+        return name.substring(0, name.length - 9);
+    }
+    return name;
+}
+
 
 /**
  * @brief Recursively get the names (with sub-folder names) of all files in a folder
@@ -101,6 +113,21 @@ export async function collaborationRecurListFolder(types: vscode.FileType[] = [v
 **/
 export async function projectRecurListFolder(types: vscode.FileType[] = [vscode.FileType.File]) : Promise<string[]> {
     return await recurListFolder(projectFolder, types);
+}
+
+
+/**
+ * @brief Check if a file exists
+ * @param uri URI of the file
+**/
+export async function exists(uri: vscode.Uri) : Promise<boolean> {
+    try {
+        await vscode.workspace.fs.stat(uri);
+        return true;
+    }
+    catch {
+        return false;
+    }
 }
 
 

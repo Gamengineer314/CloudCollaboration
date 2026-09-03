@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { LiveShare } from "./LiveShare";
 import { FileSynchronizer } from "./FileSynchronizer";
 import { currentFolder, collaborationFolder, projectFolder, context } from "./extension";
-import { showErrorWrap, sleep, collaborationName, inCollaboration, log, logError, Mutex, projectUri } from "./util";
+import { showErrorWrap, sleep, collaborationName, inCollaboration, log, logError, Mutex, projectUri, toProjectName, exists } from "./util";
 import { IncomingMessage, Server, ServerResponse, createServer } from "http";
 
 
@@ -28,6 +28,10 @@ export class Project {
 
     private static _instance : Project | undefined = undefined;
     public static get instance() : Project | undefined { return Project._instance; }
+
+    private static _hasProject : boolean = false;
+    public static get hasProject() : boolean { return Project._hasProject; }
+
     private static connecting : boolean = false;
     private static server : Server | undefined = undefined;
 
@@ -56,6 +60,7 @@ export class Project {
         if (windowState) {
             log("Window state: " + JSON.stringify(windowState));
             if (!windowState.connected) { // Connecting to a project
+                Project._hasProject = true;
                 windowState.connected = true;
                 await context.globalState.update("windowState", windowState);
                 vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Connecting to project..." }, showErrorWrap(
@@ -87,12 +92,17 @@ export class Project {
         }
         else {
             log("No state");
-
-            // Check if project folder exists
-            if (await Project.hasProject()) {
+            
+            if (await exists(projectFolder)) {
                 log("Has project");
+                Project._hasProject = true;
                 vscode.commands.executeCommand("setContext", "cloud-collaboration.hasProject", true);
-                await vscode.workspace.fs.delete(collaborationFolder, { recursive: true }); // Clear garbage files if any
+                if (await exists(collaborationFolder)) {
+                    log("Clear garbage");
+                    await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Disconnecting from project..." }, showErrorWrap(Project.hostClear));
+                    vscode.commands.executeCommand("workbench.action.closeAllEditors");
+                    vscode.commands.executeCommand("workbench.action.terminal.killAll");
+                }
             }
         }
     }
@@ -123,12 +133,13 @@ export class Project {
         if (currentFiles.length > 0) {
             throw new Error("Can't join project : workspace must be empty");
         }
-        if (await Project.hasProject()) {
+        if (Project._hasProject) {
             throw new Error("Can't join project : a project already exists in this workspace");
         }
 
         // TODO: inputs
 
+        Project._hasProject = true;
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Joining project..." }, showErrorWrap(async () => {
             log("Join project");
             // TODO: join git project
@@ -143,6 +154,7 @@ export class Project {
      * @brief Remove the project in the current folder
     **/
     public static async removeProject() : Promise<void> {
+        Project._hasProject = false;
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Removing project..." }, showErrorWrap(async () => {
             log("Remove project");
             await vscode.workspace.fs.delete(projectFolder, { recursive: true });
@@ -171,7 +183,8 @@ export class Project {
             Project.connecting = true;
             try {
                 // Get project information
-                const url = "https://prod.liveshare.vsengsaas.visualstudio.com/join?D5FC8D94A867CBAABA97307588F018D93438"; // TODO: get URL
+                // TODO: get URL
+                const url = "https://prod.liveshare.vsengsaas.visualstudio.com/join?DA67975E66ED2CEA6DCB606CA01A8FD94EAC"; // TODO: get URL
                 let host = false;
                 if (!host) {
                     log("Url " + url);
@@ -387,15 +400,22 @@ export class Project {
             }
             await instance.liveShare.exitSession();
             if (instance.host) {
-                // Remove files
-                await vscode.workspace.fs.delete(collaborationFolder, { recursive: true });
-                const configuration = vscode.workspace.getConfiguration();
-                for (const key of Object.keys(hostDefaultSettings)) {
-                    await configuration.update(key, undefined, vscode.ConfigurationTarget.Workspace);
-                }
+                await Project.hostClear();
             }
         }
         Project.disconnectedWindow();
+    }
+
+
+    /**
+     * @brief Clear the files in the collaboration folder after being host
+    **/
+    private static async hostClear() : Promise<void> {
+        await vscode.workspace.fs.delete(collaborationFolder, { recursive: true });
+        const configuration = vscode.workspace.getConfiguration();
+        for (const key of Object.keys(hostDefaultSettings)) {
+            await configuration.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+        }
     }
 
     
@@ -499,7 +519,7 @@ export class Project {
      * @param name The name of the corresponding file in the collaboration folder
     **/
     public async openProjectFile(name: string) : Promise<void> {
-        await vscode.commands.executeCommand("vscode.open", projectUri(this.fileSynchronizer.toProjectName(name)));
+        await vscode.commands.executeCommand("vscode.open", projectUri(toProjectName(name)));
     }
 
 
@@ -540,20 +560,6 @@ export class Project {
     **/
     private static disconnectedWindow() : void {
         Project.server?.close();
-    }
-
-    
-    /**
-     * @brief Check if the project folder exists
-    **/
-    public static async hasProject() : Promise<boolean> {
-        try {
-            await vscode.workspace.fs.stat(projectFolder);
-            return true;
-        }
-        catch {
-            return false;
-        }
     }
 
 }

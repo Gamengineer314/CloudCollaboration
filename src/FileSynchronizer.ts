@@ -1,7 +1,11 @@
 import * as vscode from "vscode";
 import { Project } from "./Project";
 import { isBinary, toBase64, fromBase64 } from "./BinaryFiles";
-import { collaborationUri, collaborationName, inCollaboration, collaborationRecurListFolder, projectName, projectUri, showErrorWrap, log, projectRecurListFolder } from "./util";
+import {
+    collaborationUri, collaborationName, inCollaboration, collaborationRecurListFolder,
+    projectName, projectUri, projectRecurListFolder, toProjectName,
+    showErrorWrap, log
+} from "./util";
 import { collaborationFolder, projectFolder } from "./extension";
 
 
@@ -36,7 +40,7 @@ export class FileSynchronizer {
         await vscode.workspace.fs.delete(projectFolder, { recursive: true });
         await vscode.workspace.fs.createDirectory(projectFolder);
         for (const collabName of await collaborationRecurListFolder([vscode.FileType.File, vscode.FileType.Directory])) {
-            const name = this.toProjectName(collabName);
+            const name = toProjectName(collabName);
             this.loadFile(name, collaborationUri(collabName), projectUri(name));
         }
     }
@@ -118,7 +122,7 @@ export class FileSynchronizer {
         // Auto-save modifications made by the extension in the collaboration folder
         this.syncDisposables.push(vscode.workspace.onDidChangeTextDocument(showErrorWrap((event: vscode.TextDocumentChangeEvent) => {
             if (event.contentChanges.length > 0) {
-                const name = this.toProjectName(collaborationName(event.document.uri));
+                const name = toProjectName(collaborationName(event.document.uri));
                 const state = this.files.get(name);
                 if (state && state.autoSave) {
                     log("Save " + name);
@@ -144,7 +148,7 @@ export class FileSynchronizer {
     private async collaborationFileModified(create: boolean, uri: vscode.Uri) : Promise<void> {
         // Get file state
         const collabName = collaborationName(uri);
-        const name = this.toProjectName(collabName);
+        const name = toProjectName(collabName);
         let state = this.files.get(name);
         if (!state) {
             state = new FileState();
@@ -411,23 +415,11 @@ export class FileSynchronizer {
 
 
     /**
-     * @brief Get the name of a file in the project folder from its name in the collaboration folder
-     * @param name Name of the file in the collaboration folder
-     * @returns Name of the file in the project folder
-    **/
-    public toProjectName(name: string) {
-        if (name.endsWith(".collab64")) {
-            return name.substring(0, name.length - 9);
-        }
-        return name;
-    }
-
-    /**
      * @brief Get the name of a file in the collaboration folder from its name in the project folder
      * @param name Name of the file in the project folder
      * @returns Name of the file in the collaboration folder
     **/
-    public toCollaborationName(name: string) {
+    private toCollaborationName(name: string) {
         if (this.binaryFiles.has(name)) {
             return name + ".collab64";
         }
