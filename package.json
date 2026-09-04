@@ -3,7 +3,7 @@
   "displayName": "Cloud Collaboration",
   "description": "Real-time collaboration with cloud storage",
   "version": "1.1.1",
-  "icon":  "media/icon.png",
+  "icon": "media/icon.png",
   "publisher": "gamengineer314",
   "engines": {
     "vscode": "^1.92.0"
@@ -161,6 +161,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
+    "simple-git": "^3.36.0",
     "vsls": "^1.0.4753"
   },
   "extensionDependencies": [

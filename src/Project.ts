@@ -1,9 +1,11 @@
 import * as vscode from "vscode";
 import { LiveShare } from "./LiveShare";
+import { Git } from "./Git";
 import { FileSynchronizer } from "./FileSynchronizer";
-import { currentFolder, collaborationFolder, projectFolder, context } from "./extension";
+import { currentFolder, collaborationFolder, projectFolder, context, storageFolder } from "./extension";
 import { showErrorWrap, sleep, collaborationName, inCollaboration, log, logError, Mutex, projectUri, toProjectName, exists } from "./util";
 import { IncomingMessage, Server, ServerResponse, createServer } from "http";
+import { homedir } from "os";
 
 
 const hostDefaultSettings = {
@@ -28,12 +30,12 @@ export class Project {
 
     private static _instance : Project | undefined = undefined;
     public static get instance() : Project | undefined { return Project._instance; }
-
     private static _hasProject : boolean = false;
     public static get hasProject() : boolean { return Project._hasProject; }
 
     private static connecting : boolean = false;
     private static server : Server | undefined = undefined;
+    private static urlPath : vscode.Uri;
 
     private mustUpload : boolean = false;
     private mutex : Mutex = new Mutex();
@@ -41,7 +43,8 @@ export class Project {
     private constructor(
         private host: boolean,
         private fileSynchronizer: FileSynchronizer,
-        private liveShare : LiveShare
+        private liveShare: LiveShare,
+        private git: Git
     ) {}
 
 
@@ -57,6 +60,7 @@ export class Project {
             windowState = undefined;
         }
         
+        Project.urlPath = vscode.Uri.joinPath(storageFolder, "liveShareURL.txt");
         if (windowState) {
             log("Window state: " + JSON.stringify(windowState));
             if (!windowState.connected) { // Connecting to a project
@@ -137,13 +141,85 @@ export class Project {
             throw new Error("Can't join project : a project already exists in this workspace");
         }
 
-        // TODO: inputs
+        // Ask for the URL
+        const url = await vscode.window.showInputBox({
+            title: "Git remote URL",
+            prompt: "Enter the HTTP or SSH URL of the git remote, for example a GitHub repository",
+            placeHolder: "https://github.com/<Name>/<Repo>.git OR git@github.com:<Name>/<Repo>.git",
+            ignoreFocusOut: true
+        });
+        if (!url) {
+            throw new Error("Join failed : no URL provided");
+        }
+        
+        // Ask for authentication information
+        const protocol = Git.detectProtocol(url);
+        let config: [string, string][];
+        if (protocol === "http") {
+            const username = await vscode.window.showInputBox({
+                title: "Git remote HTTP username",
+                prompt: "Enter your username to authenticate to the Git remote over HTTP",
+                ignoreFocusOut: true
+            });
+            if (username === undefined) {
+                throw new Error("Join failed : no username provided");
+            }
+            const password = await vscode.window.showInputBox({
+                title: "Git remote HTTP password",
+                prompt: "Enter your password or token to authenticate to the Git remote over HTTP",
+                ignoreFocusOut: true
+            });
+            if (password === undefined) {
+                throw new Error("Join failed : no password provided");
+            }
+            config = await Git.getHTTPConfig(username, password);
+        }
+        else {
+            const sshDir = vscode.Uri.joinPath(vscode.Uri.file(homedir()), ".ssh");
+            const keys = (await vscode.workspace.fs.readDirectory(sshDir))
+                .filter((f) => f[0].endsWith('.pub'))
+                .map(f => vscode.Uri.joinPath(sshDir, f[0].substring(0, f[0].length - 4)).fsPath);
+            let key = await vscode.window.showQuickPick(keys, {
+                title: "Git remote SSH key",
+                prompt: "Enter the path to your SSH key to authenticate to the Git remote over SSH",
+                ignoreFocusOut: true
+            });
+            if (!key) {
+                throw new Error("Join failed : no key provided");
+            }
+            config = Git.getSSHConfig(key);
+        }
 
-        Project._hasProject = true;
+        // Ask for author information
+        const globalAuthor = await Git.getGlobalAuthor();
+        const name = await vscode.window.showInputBox({
+            title: "Author name",
+            prompt: "Enter your name to author Git commits",
+            value: globalAuthor.name || "",
+            ignoreFocusOut: true
+        });
+        if (!name) {
+            throw new Error("Join failed : no name provided");
+        }
+        const email = await vscode.window.showInputBox({
+            title: "Author email",
+            prompt: "Enter your email to author Git commits",
+            value: globalAuthor.email || "",
+            ignoreFocusOut: true
+        });
+        if (!email) {
+            throw new Error("Join failed : no email provided");
+        }
+        config = [...config, ...Git.getAuthorConfig(name, email)];
+
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Joining project..." }, showErrorWrap(async () => {
             log("Join project");
             // TODO: join git project
+            await Git.clone(url, config);
+
             vscode.workspace.fs.createDirectory(projectFolder);
+            vscode.workspace.fs.writeFile(Project.urlPath, new Uint8Array());
+            Project._hasProject = true;
             vscode.commands.executeCommand("setContext", "cloud-collaboration.hasProject", true);
             vscode.window.showInformationMessage("Project joined successfully");
         }));
@@ -154,10 +230,12 @@ export class Project {
      * @brief Remove the project in the current folder
     **/
     public static async removeProject() : Promise<void> {
-        Project._hasProject = false;
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Removing project..." }, showErrorWrap(async () => {
             log("Remove project");
             await vscode.workspace.fs.delete(projectFolder, { recursive: true });
+            await vscode.workspace.fs.delete(vscode.Uri.joinPath(storageFolder, ".git"), { recursive: true });
+            await vscode.workspace.fs.delete(Project.urlPath);
+            Project._hasProject = false;
             vscode.commands.executeCommand("setContext", "cloud-collaboration.hasProject", false);
             vscode.window.showInformationMessage("Project removed successfully");
         }));
@@ -228,9 +306,10 @@ export class Project {
 
     private static async hostConnect() : Promise<void> {
         // Create instance
-        const liveShare = await LiveShare.get();
         const synchronizer = new FileSynchronizer();
-        const instance = new Project(true, synchronizer, liveShare);
+        const liveShare = await LiveShare.get();
+        const git = await Git.get();
+        const instance = new Project(true, synchronizer, liveShare, git);
         Project._instance = instance;
 
         // Connect
@@ -281,9 +360,10 @@ export class Project {
 
     private static async guestConnect() : Promise<void> {
         // Create instance
-        const liveShare = await LiveShare.get();
         const synchronizer = new FileSynchronizer();
-        const instance = new Project(false, synchronizer, liveShare);
+        const liveShare = await LiveShare.get();
+        const git = await Git.get();
+        const instance = new Project(false, synchronizer, liveShare, git);
         Project._instance = instance;
 
         // Wait until the Live Share session is ready

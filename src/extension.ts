@@ -9,6 +9,7 @@ import { IgnoredDecorationProvider } from "./IgnoredDecoration";
 export let context : vscode.ExtensionContext;
 export let currentFolder: vscode.Uri;
 export let collaborationFolder: vscode.Uri;
+export let storageFolder: vscode.Uri;
 export let projectFolder: vscode.Uri;
 export let output: vscode.LogOutputChannel;
 
@@ -19,7 +20,8 @@ export async function activate(_context: vscode.ExtensionContext) {
     if (vscode.workspace.workspaceFolders && context.storageUri) {
         currentFolder = vscode.workspace.workspaceFolders[0].uri;
         collaborationFolder = vscode.Uri.joinPath(currentFolder, "Project");
-        projectFolder = vscode.Uri.joinPath(context.storageUri, "Project");
+        storageFolder = context.storageUri;
+        projectFolder = vscode.Uri.joinPath(storageFolder, "Project");
     }
     output = vscode.window.createOutputChannel("Cloud Collaboration", { log: true });
 
