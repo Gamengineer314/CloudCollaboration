@@ -98,4 +98,37 @@ export class Git {
             email: (await git.getConfig("user.email", "global")).value,
         };
     }
+
+    /**
+     * @brief Pull commits from the remote
+    **/
+    public async pull() : Promise<void> {
+        await this.git.pull();
+    }
+
+    /**
+     * @brief Push commits to the remote
+    **/
+    public async push() : Promise<void> {
+        await this.git.push();
+    }
+
+    /**
+     * @brief Commit all changes
+     * @param files Files to upload
+     * @param message Commit message
+    **/
+    public async commit(files: string | string[], message: string) : Promise<void> {
+        const status = await this.git.status();
+        if (
+            status.not_added.length > 0 ||
+            status.created.length > 0 ||
+            status.deleted.length > 0 ||
+            status.modified.length > 0 ||
+            status.renamed.length > 0
+        ) {
+            await this.git.add(files);
+            await this.git.commit(message);
+        }
+    }
 }

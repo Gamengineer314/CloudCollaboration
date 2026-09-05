@@ -35,7 +35,7 @@ export async function activate(_context: vscode.ExtensionContext) {
     context.subscriptions.push(removeProject);
     const connect = vscode.commands.registerCommand("cloud-collaboration.connect", showErrorWrap(Project.connect));
     context.subscriptions.push(connect);
-    const disconnect = vscode.commands.registerCommand("cloud-collaboration.disconnect", showErrorWrap(Project.disconnect));
+    const disconnect = vscode.commands.registerCommand("cloud-collaboration.disconnect", showErrorWrap(Project.disconnect.bind(undefined, false)));
     context.subscriptions.push(disconnect);
     const newTerminal = vscode.commands.registerCommand("cloud-collaboration.newTerminal", showErrorWrap(async () => 
         vscode.commands.executeCommand("workbench.action.terminal.newWithCwd", { cwd: projectFolder.fsPath })

@@ -3,7 +3,7 @@ import { LiveShare } from "./LiveShare";
 import { Git } from "./Git";
 import { FileSynchronizer } from "./FileSynchronizer";
 import { currentFolder, collaborationFolder, projectFolder, context, storageFolder } from "./extension";
-import { showErrorWrap, sleep, collaborationName, inCollaboration, log, logError, Mutex, projectUri, toProjectName, exists } from "./util";
+import { showErrorWrap, sleep, collaborationName, inCollaboration, log, logError, Mutex, exists } from "./util";
 import { IncomingMessage, Server, ServerResponse, createServer } from "http";
 import { homedir } from "os";
 
@@ -41,10 +41,10 @@ export class Project {
     private mutex : Mutex = new Mutex();
 
     private constructor(
-        private host: boolean,
-        private fileSynchronizer: FileSynchronizer,
-        private liveShare: LiveShare,
-        private git: Git
+        private readonly host: boolean,
+        private readonly fileSynchronizer: FileSynchronizer,
+        private readonly liveShare: LiveShare,
+        private readonly git: Git | undefined
     ) {}
 
 
@@ -121,7 +121,7 @@ export class Project {
             await Project.instance.mutex.lock();
             if (Project.instance.mustUpload) {
                 Project.instance.mustUpload = false;
-                // TODO: upload
+                await Project.instance._upload();
             }
             Project.instance.mutex.unlock();
         }
@@ -214,11 +214,9 @@ export class Project {
 
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Joining project..." }, showErrorWrap(async () => {
             log("Join project");
-            // TODO: join git project
             await Git.clone(url, config);
-
-            vscode.workspace.fs.createDirectory(projectFolder);
-            vscode.workspace.fs.writeFile(Project.urlPath, new Uint8Array());
+            await vscode.workspace.fs.createDirectory(projectFolder);
+            await Project.setUrl("");
             Project._hasProject = true;
             vscode.commands.executeCommand("setContext", "cloud-collaboration.hasProject", true);
             vscode.window.showInformationMessage("Project joined successfully");
@@ -261,8 +259,9 @@ export class Project {
             Project.connecting = true;
             try {
                 // Get project information
-                // TODO: get URL
-                const url = "https://prod.liveshare.vsengsaas.visualstudio.com/join?DA67975E66ED2CEA6DCB606CA01A8FD94EAC"; // TODO: get URL
+                const git = await Git.get();
+                await git.pull();
+                const url = await Project.getUrl();
                 let host = false;
                 if (!host) {
                     log("Url " + url);
@@ -277,7 +276,8 @@ export class Project {
                         // Connect
                         log("Host connect");
                         Project.connectedWindow();
-                        await Project.hostConnect();
+                        Project._instance = new Project(true, new FileSynchronizer(), await LiveShare.get(), git);
+                        Project._instance.hostConnect();
                     }
                     catch (error: any) {
                         logError(error.message);
@@ -304,23 +304,19 @@ export class Project {
         }));
     }
 
-    private static async hostConnect() : Promise<void> {
-        // Create instance
-        const synchronizer = new FileSynchronizer();
-        const liveShare = await LiveShare.get();
-        const git = await Git.get();
-        const instance = new Project(true, synchronizer, liveShare, git);
-        Project._instance = instance;
 
+    private async hostConnect() : Promise<void> {
         // Connect
-        await liveShare.createSession();
-        const url = liveShare.sessionUrl!;
+        await this.liveShare.createSession();
+        const url = this.liveShare.sessionUrl!;
         log("Url " + url);
-        // TODO: set URL
-        liveShare.setCallbacks(undefined, showErrorWrap(Project.disconnect));
-        await synchronizer.loadCollaboration();
-        await synchronizer.startSync(true);
-        instance.startUpload();
+        await Project.setUrl(url);
+        await this._upload();
+        this.liveShare.setCallbacks(undefined, showErrorWrap(Project.disconnect.bind(undefined, true)));
+        await this.fileSynchronizer.loadCollaboration();
+        await this.fileSynchronizer.startSync(true);
+        this.mustUpload = true;
+        this.uploadLoop();
 
         // Default settings
         const configuration = vscode.workspace.getConfiguration();
@@ -347,7 +343,8 @@ export class Project {
         try {
             // Connect
             log("Guest connect");
-            await Project.guestConnect();
+            Project._instance = new Project(false, new FileSynchronizer(), await LiveShare.get(), undefined);
+            Project._instance.guestConnect();
         }
         catch (error: any) {
             logError(error.message);
@@ -358,20 +355,14 @@ export class Project {
         }
     }
 
-    private static async guestConnect() : Promise<void> {
-        // Create instance
-        const synchronizer = new FileSynchronizer();
-        const liveShare = await LiveShare.get();
-        const git = await Git.get();
-        const instance = new Project(false, synchronizer, liveShare, git);
-        Project._instance = instance;
 
+    private async guestConnect() : Promise<void> {
         // Wait until the Live Share session is ready
-        await liveShare.waitForSession();
+        await this.liveShare.waitForSession();
 
         // Update previous folder
         const windowState = context.globalState.get<WindowState>("windowState")!;
-        liveShare.setCallbacks(showErrorWrap((index) => {
+        this.liveShare.setCallbacks(showErrorWrap((index) => {
             windowState.userIndex = index;
             context.globalState.update("windowState", windowState);
         }), showErrorWrap(() => {
@@ -380,8 +371,8 @@ export class Project {
         }));
 
         // Connect
-        await synchronizer.loadProject();
-        //await synchronizer.startSync(false);
+        await this.fileSynchronizer.loadProject();
+        await this.fileSynchronizer.startSync(false);
 
         // Default settings
         const configuration = vscode.workspace.getConfiguration();
@@ -409,11 +400,12 @@ export class Project {
         Project.connecting = true;
         try {
             // Wait for previous host to disconnect
+            const git = await Git.get();
             let hostTime = Date.now() + 20_000 * (userIndex - 1);
             let overrideTime = Date.now() + 5_000 + 20_000 * (userIndex - 1);
             while (true) {
-                let url = "";
-                // TODO: get URL
+                await git.pull();
+                let url = await Project.getUrl();
                 if (url === "" && Date.now() >= hostTime) {
                     log("Previous disconnected");
                     break;
@@ -424,7 +416,6 @@ export class Project {
                 }
                 if (Date.now() > overrideTime) {
                     log("Timeout");
-                    url = "";
                     break;
                 }
                 await sleep(1_000);
@@ -440,15 +431,40 @@ export class Project {
 
 
     /**
-     * @brief Disconnect from the project
+     * @brief Get the Live Share URL
     **/
-    public static async disconnect() : Promise<void> {
+    private static async getUrl() : Promise<string> {
+        return new TextDecoder().decode(await vscode.workspace.fs.readFile(Project.urlPath));
+    }
+
+    /**
+     * @brief Get the Live Share URL
+    **/
+    private static async setUrl(url: string) : Promise<void> {
+        await vscode.workspace.fs.writeFile(Project.urlPath, new TextEncoder().encode(url));
+    }
+
+
+    /**
+     * @brief Disconnect from the project
+     * @param force Whether to disconnect even if the last upload fails
+    **/
+    public static async disconnect(force: boolean) : Promise<void> {
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Disconnecting from project..." }, showErrorWrap(async () => {
             log("Disconnect");
             const instance = Project.instance!;
             if (instance.host) {
-                // Last upload
-                await instance.stopUpload();
+                await Project.setUrl("");
+                try {
+                    await instance.upload();
+                }
+                catch (error: any) {
+                    logError(error.message);
+                    if (!force) { // Cancel disconnection
+                        await Project.setUrl(instance.liveShare.sessionUrl!);
+                        return;
+                    }
+                }
             }
             await Project._disconnect();
             if (instance.host) {
@@ -498,66 +514,49 @@ export class Project {
         }
     }
 
-    
-    /**
-     * @brief Start uploading files regularly to Google Drive
-    **/
-    private startUpload() : void {
-        log("Start upload");
-        this.mustUpload = true;
-        this.uploadLoop();
-    }
-
 
     /**
      * @brief Upload files regularly to Google Drive
     **/
     private async uploadLoop() : Promise<void> {
-        while (true) {
+        while (this.mustUpload) {
             // Wait 10 minutes
             // TODO: add setting
-            await sleep(600_000);
-
-            // Upload
-            await this.mutex.lock();
-            if (!this.mustUpload) {
-                this.mutex.unlock();
-                break;
-            }
+            await sleep(60_000);
             try {
-                await vscode.commands.executeCommand("workbench.action.files.saveAll");
-                await sleep(1000);
-                // TODO: upload and check host
+                await this.upload();
             }
             catch (error: any) {
                 logError(error.message);
             }
-            this.mutex.unlock();
         }
     }
 
 
     /**
-     * @brief Stop uploading files regularly to Google Drive
+     * @brief Upload files
     **/
-    private async stopUpload() : Promise<void> {
-        log("Stop upload");
+    private async upload() : Promise<void> {
         await this.mutex.lock();
         if (!this.mustUpload) {
             this.mutex.unlock();
-            throw new Error("Already disconnected");
+            return;
         }
+        log("Upload");
         try {
             await vscode.commands.executeCommand("workbench.action.files.saveAll");
             await sleep(1000);
-            // TODO: upload
+            await this._upload();
         }
-        catch (error: any) { // Resume upload if error
+        finally {
             this.mutex.unlock();
-            throw error;
         }
-        this.mustUpload = false; // Stop upload
-        this.mutex.unlock();
+    }
+
+
+    private async _upload() : Promise<void> {
+        await this.git!.commit(".", "Upload");
+        await this.git!.push();
     }
 
 
@@ -591,15 +590,6 @@ export class Project {
             await vscode.workspace.fs.copy(file, dest, { overwrite: true});
         }
         vscode.window.showInformationMessage("Files uploaded successfully");
-    }
-
-
-    /**
-     * @brief Open a file in the project folder
-     * @param name The name of the corresponding file in the collaboration folder
-    **/
-    public async openProjectFile(name: string) : Promise<void> {
-        await vscode.commands.executeCommand("vscode.open", projectUri(toProjectName(name)));
     }
 
 

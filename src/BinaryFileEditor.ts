@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { collaborationName, inCollaboration, logError } from "./util";
+import { collaborationName, inCollaboration, logError, projectUri, toProjectName } from "./util";
 import { Project } from "./Project";
 
 
@@ -21,6 +21,6 @@ export class BinaryFileEditorProvider implements vscode.CustomTextEditorProvider
 
         // Close this editor and open the actual file
         await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
-        await Project.instance.openProjectFile(collaborationName(document.uri));
+        await vscode.commands.executeCommand("vscode.open", projectUri(toProjectName(collaborationName(document.uri))));
     }
 }
