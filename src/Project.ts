@@ -105,6 +105,14 @@ export class Project {
                     vscode.commands.executeCommand("workbench.action.closeAllEditors");
                     vscode.commands.executeCommand("workbench.action.terminal.killAll");
                 }
+
+                // Send connection notification
+                vscode.window.showInformationMessage("Cloud Collaboration project detected in the current workspace", "Connect")
+                .then(showErrorWrap(async (item: string | undefined) => {
+                    if (item) {
+                        await Project.connect();
+                    }
+                }));
             }
         }
     }

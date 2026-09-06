@@ -218,7 +218,7 @@ export class FileSynchronizer {
                         }
                         else if (isBinary(content)) { // Shouldn't be binary
                             log("Shouldn't be binary " + name);
-                            vscode.window.showErrorMessage("Binary files must be added with the 'Upload files' command", "Upload files")
+                            vscode.window.showErrorMessage("Binary files must be added with the 'Upload Files' command", "Upload files")
                             .then(showErrorWrap(async (item: string | undefined) => {
                                 if (item) {
                                     await Project.instance?.uploadFiles(collaborationFolder);
