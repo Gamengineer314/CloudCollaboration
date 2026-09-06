@@ -127,6 +127,17 @@
           "id": "cloud-collaboration.terminal"
         }
       ]
+    },
+    "configuration": {
+      "title": "Cloud Collaboration",
+      "type": "object",
+      "properties": {
+        "cloudCollaboration.uploadPeriod": {
+          "type": "number",
+          "default": 10,
+          "description": "Time between file uploads when connected to a project, in minutes"
+        }
+      }
     }
   },
   "repository": {

@@ -521,10 +521,9 @@ export class Project {
     **/
     private async uploadLoop() : Promise<void> {
         while (this.mustUpload) {
-            // Wait 10 minutes
-            // TODO: add setting
-            await sleep(60_000);
             try {
+                const period = vscode.workspace.getConfiguration().get<number>("cloudCollaboration.uploadPeriod")!;
+                await sleep(period * 60_000);
                 await this.upload();
             }
             catch (error: any) {
