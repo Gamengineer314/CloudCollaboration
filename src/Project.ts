@@ -123,13 +123,13 @@ export class Project {
     **/
     public static async deactivate() : Promise<void> {
         Project.disconnectedWindow();
-        if (Project.instance && Project.instance.host) {
-            await Project.instance.mutex.lock();
-            if (Project.instance.mustUpload) {
-                Project.instance.mustUpload = false;
-                await Project.instance._upload();
-            }
-            Project.instance.mutex.unlock();
+        if (Project.instance?.host) {
+            await Project.instance.mutex.withLock(async () => {
+                if (Project.instance?.mustUpload) {
+                    Project.instance.mustUpload = false;
+                    await Project.instance._upload();
+                }
+            });
         }
     }
 
@@ -466,7 +466,7 @@ export class Project {
             if (instance.host) {
                 await Project.setUrl("");
                 try {
-                    await instance.upload();
+                    await instance.mutex.withLock(instance.upload.bind(instance));
                 }
                 catch (error: any) {
                     logError(error.message);
@@ -532,7 +532,7 @@ export class Project {
             try {
                 const period = vscode.workspace.getConfiguration().get<number>("cloudCollaboration.uploadPeriod")!;
                 await sleep(period * 60_000);
-                await this.upload();
+                await this.mutex.withLock(this.upload.bind(this));
             }
             catch (error: any) {
                 logError(error.message);
@@ -545,23 +545,16 @@ export class Project {
      * @brief Upload files
     **/
     private async upload() : Promise<void> {
-        await this.mutex.lock();
         if (!this.mustUpload) {
-            this.mutex.unlock();
             return;
         }
         log("Upload");
-        try {
-            await vscode.commands.executeCommand("workbench.action.files.saveAll");
-            await sleep(1000);
-            if (await this._upload()) { // Other host stole the session
-                logError("Another user is the host for this project");
-                await Project._disconnect();
-                Project.connect();
-            }
-        }
-        finally {
-            this.mutex.unlock();
+        await vscode.commands.executeCommand("workbench.action.files.saveAll");
+        await sleep(1000);
+        if (await this._upload()) { // Other host stole the session
+            logError("Another user is the host for this project");
+            await Project._disconnect();
+            Project.connect();
         }
     }
 

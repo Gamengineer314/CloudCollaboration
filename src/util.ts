@@ -170,24 +170,24 @@ export async function waitFor(condition: () => boolean, interval: number = 100) 
 
 
 export class Mutex {
-    private _locked: boolean = false;
-    public get locked() : boolean { return this._locked; }
+    private pending: Promise<void> | undefined = undefined;
 
     /**
-     * @brief Wait until the mutex is unlocked, then lock it
+     * @brief Perform an action with mutual exclusion 
+     * @param action The action
     **/
-    public async lock() : Promise<void> {
-        if (this._locked) {
-            await waitFor(() => !this._locked);
+    public async withLock(action: () => void | Promise<void>) : Promise<void> {
+        if (this.pending) {
+            this.pending = this.pending.then(action, action);
+            await this.pending;
         }
-        this._locked = true;
-    }
-
-    /**
-     * @brief Unlock the mutex
-    **/
-    public unlock() {
-        this._locked = false;
+        else {
+            const promise = action();
+            if (promise) {
+                this.pending = promise;
+                await promise;
+            }
+        }
     }
 }
 
