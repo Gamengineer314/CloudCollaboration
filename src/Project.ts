@@ -35,7 +35,6 @@ export class Project {
 
     private static connecting : boolean = false;
     private static server : Server | undefined = undefined;
-    private static urlPath : vscode.Uri;
 
     private mustUpload : boolean = false;
     private mutex : Mutex = new Mutex();
@@ -59,8 +58,7 @@ export class Project {
             log("Other window");
             windowState = undefined;
         }
-        
-        Project.urlPath = vscode.Uri.joinPath(storageFolder, "liveShareURL.txt");
+
         if (windowState) {
             log("Window state: " + JSON.stringify(windowState));
             if (!windowState.connected) { // Connecting to a project
@@ -230,9 +228,9 @@ export class Project {
     public static async removeProject() : Promise<void> {
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Removing project..." }, showErrorWrap(async () => {
             log("Remove project");
-            await vscode.workspace.fs.delete(projectFolder, { recursive: true });
-            await vscode.workspace.fs.delete(vscode.Uri.joinPath(storageFolder, ".git"), { recursive: true });
-            await vscode.workspace.fs.delete(Project.urlPath);
+            for (const file of await vscode.workspace.fs.readDirectory(storageFolder)) {
+                await vscode.workspace.fs.delete(vscode.Uri.joinPath(storageFolder, file[0]), { recursive: true });
+            }
             Project._hasProject = false;
             vscode.commands.executeCommand("setContext", "cloud-collaboration.hasProject", false);
             vscode.window.showInformationMessage("Project removed successfully");
@@ -311,7 +309,11 @@ export class Project {
         const url = this.liveShare.sessionUrl!;
         log("Url " + url);
         await Project.setUrl(url);
-        await this._upload();
+        if (await this._upload()) { // Other host connected at the same time
+            await Project._disconnect();
+            Project.connecting = false;
+            Project.connect();
+        }
         this.liveShare.setCallbacks(undefined, showErrorWrap(Project.disconnect.bind(undefined, true)));
         await this.fileSynchronizer.loadCollaboration();
         await this.fileSynchronizer.startSync(true);
@@ -434,14 +436,14 @@ export class Project {
      * @brief Get the Live Share URL
     **/
     private static async getUrl() : Promise<string> {
-        return new TextDecoder().decode(await vscode.workspace.fs.readFile(Project.urlPath));
+        return new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(storageFolder, "liveShareURL.txt")));
     }
 
     /**
      * @brief Get the Live Share URL
     **/
     private static async setUrl(url: string) : Promise<void> {
-        await vscode.workspace.fs.writeFile(Project.urlPath, new TextEncoder().encode(url));
+        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(storageFolder, "liveShareURL.txt"), new TextEncoder().encode(url));
     }
 
 
@@ -467,12 +469,6 @@ export class Project {
                 }
             }
             await Project._disconnect();
-            if (instance.host) {
-                // Setup editor
-                vscode.commands.executeCommand("workbench.action.closeAllEditors");
-                vscode.commands.executeCommand("workbench.action.terminal.killAll");
-                vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
-            }
         }));
     }
 
@@ -497,6 +493,11 @@ export class Project {
             await instance.liveShare.exitSession();
             if (instance.host) {
                 await Project.hostClear();
+
+                // Setup editor
+                vscode.commands.executeCommand("workbench.action.closeAllEditors");
+                vscode.commands.executeCommand("workbench.action.terminal.killAll");
+                vscode.commands.executeCommand("setContext", "cloud-collaboration.connected", false);
             }
         }
         Project.disconnectedWindow();
@@ -546,7 +547,11 @@ export class Project {
         try {
             await vscode.commands.executeCommand("workbench.action.files.saveAll");
             await sleep(1000);
-            await this._upload();
+            if (await this._upload()) { // Other host stole the session
+                logError("Another user is the host for this project");
+                await Project._disconnect();
+                Project.connect();
+            }
         }
         finally {
             this.mutex.unlock();
@@ -554,9 +559,9 @@ export class Project {
     }
 
 
-    private async _upload() : Promise<void> {
+    private async _upload() : Promise<boolean> {
         await this.git!.commit(".", "Upload");
-        await this.git!.push();
+        return await this.git!.push();
     }
 
 

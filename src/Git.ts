@@ -1,4 +1,4 @@
-import { simpleGit, SimpleGit } from "simple-git";
+import { GitResponseError, simpleGit, SimpleGit } from "simple-git";
 import { context, currentFolder, storageFolder } from "./extension";
 
 
@@ -103,15 +103,33 @@ export class Git {
      * @brief Pull commits from the remote
     **/
     public async pull() : Promise<void> {
-        await this.git.pull();
+        await this.git.fetch();
+        const upstream = (await this.git.status()).tracking;
+        if (upstream) {
+            await this.git.reset(["--hard", upstream]);
+        }
     }
+
 
     /**
      * @brief Push commits to the remote
+     * @returns Whether the push was rejected by the remote
     **/
-    public async push() : Promise<void> {
-        await this.git.push();
+    public async push() : Promise<boolean> {
+        try {
+            await this.git.push();
+        }
+        catch (error: any) {
+            if (error instanceof GitResponseError) {
+                const message: string = error.message;
+                if (message.includes("[rejected]")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
+
 
     /**
      * @brief Commit all changes
