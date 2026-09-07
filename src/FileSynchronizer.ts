@@ -14,103 +14,38 @@ import { collaborationFolder, projectFolder } from "./extension";
 **/
 export class FileSynchronizer {
 
-    private files : Map<string, FileState> = new Map<string, FileState>();
-    private filesContent : Map<string, FileContent> = new Map<string, FileContent>();
-    private binaryFiles : Set<string> = new Set<string>(); // Name of all binary files
+    private readonly files : Map<string, FileState> = new Map<string, FileState>();
+    private readonly binaryFiles : Set<string> = new Set<string>(); // Name of all binary files
     private syncDisposables : vscode.Disposable[] = [];
 
-
-    /**
-     * @brief Load files from the project folder to the collaboration folder
-    **/
-    public async loadCollaboration() : Promise<void> {
-        log("Load collaboration");
-        await vscode.workspace.fs.delete(collaborationFolder, { recursive: true });
-        await vscode.workspace.fs.createDirectory(collaborationFolder);
-        for (const name of await projectRecurListFolder([vscode.FileType.File, vscode.FileType.Directory])) {
-            this.loadFile(name, projectUri(name), collaborationUri(this.toCollaborationName(name)));
-        }
-    }
-
-    /**
-     * @brief Load files from the collaboration folder to the project folder
-    **/
-    public async loadProject() : Promise<void> {
-        log("Load project");
-        await vscode.workspace.fs.delete(projectFolder, { recursive: true });
-        await vscode.workspace.fs.createDirectory(projectFolder);
-        for (const collabName of await collaborationRecurListFolder([vscode.FileType.File, vscode.FileType.Directory])) {
-            const name = toProjectName(collabName);
-            this.loadFile(name, collaborationUri(collabName), projectUri(name));
-        }
-    }
-
-    private async loadFile(name: string, srcUri: vscode.Uri, dstUri: vscode.Uri) {
-        const type = (await vscode.workspace.fs.stat(srcUri)).type;
-        let content = type === vscode.FileType.Directory ? null : await vscode.workspace.fs.readFile(srcUri);
-        const state = new FileState();
-        state.content = content;
-        this.files.set(name, state);
-        this.filesContent.set(name, new FileContent(content, false));
-        if (content === null) {
-            await vscode.workspace.fs.createDirectory(dstUri);
-        }
-        else {
-            if (isBinary(content)) {
-                this.binaryFiles.add(name);
-                content = new TextEncoder().encode(toBase64(content));
-            }
-            await vscode.workspace.fs.writeFile(dstUri, content);
-        }
-    }
+    public constructor(
+        private readonly host: boolean
+    ) {}
 
 
     /**
      * @brief Start synchronization between the collaboration folder and the project folder
-     * @param host Wether or not the collaboration user is the host of the Live Share session
     **/
-    public async startSync(host: boolean) : Promise<void> {
-        // Listen to file modification events (collaboration folder -> project folder)
-        const collaborationModified = showErrorWrap(this.collaborationFileModified.bind(this, false));
-        const collaborationCreated = showErrorWrap(this.collaborationFileModified.bind(this, true));
-        const collaborationWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(collaborationFolder, "**"));
-        this.syncDisposables.push(collaborationWatcher.onDidCreate(collaborationCreated));
-        this.syncDisposables.push(collaborationWatcher.onDidDelete(collaborationModified));
-        this.syncDisposables.push(collaborationWatcher.onDidChange(collaborationModified));
-        this.syncDisposables.push(collaborationWatcher);
-        if (!host) { // Double listening because some events are not triggered in some situations in Live Share
-            this.syncDisposables.push(vscode.workspace.onDidCreateFiles(event => {
-                for (const uri of event.files) {
-                    if (inCollaboration(uri)) {
-                        collaborationCreated(uri);
-                    }
-                }
-            }));
-            this.syncDisposables.push(vscode.workspace.onDidDeleteFiles(event => {
-                for (const uri of event.files) {
-                    if (inCollaboration(uri)) {
-                        collaborationModified(uri);
-                    }
-                }
-            }));
-            this.syncDisposables.push(vscode.workspace.onDidSaveTextDocument(document => {
-                if (inCollaboration(document.uri)) {
-                    collaborationModified(document.uri);
-                }
-            }));
-            this.syncDisposables.push(vscode.workspace.onDidRenameFiles(event => {
-                for (const uri of event.files) {
-                    if (inCollaboration(uri.oldUri)) {
-                        collaborationModified(uri.oldUri);
-                    }
-                    if (inCollaboration(uri.newUri)) {
-                        collaborationCreated(uri.newUri);
-                    }
-                }
-            }));
+    public async startSync() : Promise<void> {
+        if (this.host) {
+            this.listenProject();
+            await this.loadCollaboration();
+            this.listenCollaboration1();
         }
+        else {
+            this.listenCollaboration1();
+            this.listenCollaboration2();
+            await this.loadProject();
+            this.listenProject();
+            this.autoSaveCollaboration();
+        }
+    }
 
-        // Listen to file modification events (project folder -> collaboration folder)
+
+    /**
+     * @brief Listen to file modification events in the project folder
+    **/
+    private listenProject() {
         const projectModified = showErrorWrap(this.projectFileModified.bind(this, false));
         const projectCreated = showErrorWrap(this.projectFileModified.bind(this, true));
         const projectWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(projectFolder, "**"));
@@ -118,8 +53,62 @@ export class FileSynchronizer {
         this.syncDisposables.push(projectWatcher.onDidDelete(projectModified));
         this.syncDisposables.push(projectWatcher.onDidChange(projectModified));
         this.syncDisposables.push(projectWatcher);
+    }
 
-        // Auto-save modifications made by the extension in the collaboration folder
+    /**
+     * @brief Listen to file modification events in the collaboration folder
+    **/
+    private listenCollaboration1() {
+        const collaborationModified = showErrorWrap(this.collaborationFileModified.bind(this, false));
+        const collaborationCreated = showErrorWrap(this.collaborationFileModified.bind(this, true));
+        const collaborationWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(collaborationFolder, "**"));
+        this.syncDisposables.push(collaborationWatcher.onDidCreate(collaborationCreated));
+        this.syncDisposables.push(collaborationWatcher.onDidDelete(collaborationModified));
+        this.syncDisposables.push(collaborationWatcher.onDidChange(collaborationModified));
+        this.syncDisposables.push(collaborationWatcher);
+    }
+
+    /**
+     * @brief Double listening because some events are not triggered in some situations in Live Share
+    **/
+    private listenCollaboration2() {
+        const collaborationModified = showErrorWrap(this.collaborationFileModified.bind(this, false));
+        const collaborationCreated = showErrorWrap(this.collaborationFileModified.bind(this, true));
+        this.syncDisposables.push(vscode.workspace.onDidCreateFiles(event => {
+            for (const uri of event.files) {
+                if (inCollaboration(uri)) {
+                    collaborationCreated(uri);
+                }
+            }
+        }));
+        this.syncDisposables.push(vscode.workspace.onDidDeleteFiles(event => {
+            for (const uri of event.files) {
+                if (inCollaboration(uri)) {
+                    collaborationModified(uri);
+                }
+            }
+        }));
+        this.syncDisposables.push(vscode.workspace.onDidSaveTextDocument(document => {
+            if (inCollaboration(document.uri)) {
+                collaborationModified(document.uri);
+            }
+        }));
+        this.syncDisposables.push(vscode.workspace.onDidRenameFiles(event => {
+            for (const uri of event.files) {
+                if (inCollaboration(uri.oldUri)) {
+                    collaborationModified(uri.oldUri);
+                }
+                if (inCollaboration(uri.newUri)) {
+                    collaborationCreated(uri.newUri);
+                }
+            }
+        }));
+    }
+
+    /**
+     * @brief Auto-save modifications made by the extension in the collaboration folder
+    **/
+    private autoSaveCollaboration() {
         this.syncDisposables.push(vscode.workspace.onDidChangeTextDocument(showErrorWrap((event: vscode.TextDocumentChangeEvent) => {
             if (event.contentChanges.length > 0) {
                 const name = toProjectName(collaborationName(event.document.uri));
@@ -137,6 +126,26 @@ export class FileSynchronizer {
                 }
             }
         })));
+    }
+
+    /**
+     * @brief Load files from the project folder to the collaboration folder
+    **/
+    private async loadCollaboration() : Promise<void> {
+        log("Load collaboration");
+        for (const name of await projectRecurListFolder([vscode.FileType.File, vscode.FileType.Directory])) {
+            await this.projectFileModified(true, projectUri(name));
+        }
+    }
+
+    /**
+     * @brief Load files from the collaboration folder to the project folder
+    **/
+    private async loadProject() : Promise<void> {
+        log("Load project");
+        for (const name of await collaborationRecurListFolder([vscode.FileType.File, vscode.FileType.Directory])) {
+            await this.collaborationFileModified(true, collaborationUri(name));
+        }
     }
 
 
@@ -225,9 +234,7 @@ export class FileSynchronizer {
                                 }
                             }));
                             state.content = undefined;
-                            const edit = new vscode.WorkspaceEdit();
-                            edit.deleteFile(collaborationUri(collabName));
-                            await vscode.workspace.applyEdit(edit);
+                            await this.deleteCollaborationFile(collaborationUri(collabName));
                             continue;
                         }
                     }
@@ -241,10 +248,6 @@ export class FileSynchronizer {
         } while (state.continue);
 
         state.collaborationModifying = false;
-        this.filesContent.delete(name);
-        if (state.content !== undefined) {
-            this.filesContent.set(name, new FileContent(state.content, true));
-        }
         log("End collaboration modified " + name);
     }
 
@@ -278,7 +281,6 @@ export class FileSynchronizer {
         state.projectModifying = true;
 
         // Modify collaboration file while project file is modified
-        let saveEdit: vscode.WorkspaceEdit | null = null;
         do {
             state.continue = false;
 
@@ -306,47 +308,26 @@ export class FileSynchronizer {
 
             // Modify collaboration file if content was modified
             if (this.wasModified(state.content, content)) {
+                state.content = content;
                 if (content === undefined) {
                     log("Delete collaboration file/directory " + name);
-                    state.content = content;
-                    const edit = new vscode.WorkspaceEdit();
-                    edit.deleteFile(collaborationUri(collabName), { recursive: true });
-                    await vscode.workspace.applyEdit(edit);
                     this.binaryFiles.delete(name);
+                    await this.deleteCollaborationFile(collaborationUri(collabName));
                 }
                 else if (content === null) {
                     log("Create collaboration directory " + name);
-                    state.content = content;
                     await vscode.workspace.fs.createDirectory(collaborationUri(collabName));
                 }
                 else {
                     if (!collabName.endsWith(".collab64") && isBinary(content)) { // Binary file -> add to binary files and rename
                         this.binaryFiles.add(name);
                         log("Delete collaboration file/directory " + name);
-                        const edit = new vscode.WorkspaceEdit();
-                        edit.deleteFile(collaborationUri(collabName), { recursive: true });
-                        await vscode.workspace.applyEdit(edit);
+                        await this.deleteCollaborationFile(collaborationUri(collabName));
                         collabName += ".collab64";
                         create = true;
                     }
-                    if (create) {
-                        log("Create collaboration file " + name);
-                        create = false;
-                        state.content = new Uint8Array();
-                        state.continue = true;
-                        const edit = new vscode.WorkspaceEdit();
-                        edit.createFile(collaborationUri(collabName));
-                        await vscode.workspace.applyEdit(edit);
-                    }
-                    else {
-                        log("Modify collaboration file " + name);
-                        state.content = content;
-                        const str = collabName.endsWith(".collab64") ? toBase64(content) : new TextDecoder().decode(content);
-                        if (!saveEdit) {
-                            saveEdit = new vscode.WorkspaceEdit();
-                        }
-                        saveEdit.replace(collaborationUri(collabName), new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
-                    }
+                    log((create ? "Create" : "Modify") + " collaboration file " + name);
+                    await this.writeCollaborationFile(collaborationUri(collabName), state, create);
                 }
             }
             else {
@@ -354,31 +335,44 @@ export class FileSynchronizer {
             }
 
         } while (state.continue);
-        if (saveEdit) {
-            await this.applyEditAndSave(saveEdit, state);
-        }
 
         state.projectModifying = false;
-        this.filesContent.delete(name);
-        if (state.content !== undefined) {
-            this.filesContent.set(name, new FileContent(state.content, true));
-        }
         log("End project modified " + name);
     }
 
+    private async deleteCollaborationFile(uri: vscode.Uri) {
+        if (this.host) {
+            await vscode.workspace.fs.delete(uri, { recursive: true });
+        }
+        else {
+            const edit = new vscode.WorkspaceEdit();
+            edit.deleteFile(uri, { recursive: true });
+            await vscode.workspace.applyEdit(edit);
+        }
+    }
 
-    /**
-     * @brief Apply an edit to a file and save the file
-     * @param edit The edit
-     * @param state State of the file
-    **/
-    private async applyEditAndSave(edit: vscode.WorkspaceEdit, state: FileState) : Promise<void> {
-        state.autoSave = true;
-        const editPromise = vscode.workspace.applyEdit(edit);
-        const savePromise = new Promise<void>(resolve => state.saveResolve = resolve);
-        await editPromise;
-        state.autoSave = false;
-        await savePromise;
+    private async writeCollaborationFile(uri: vscode.Uri, state: FileState, create: boolean) {
+        let content = state.content!;
+        if (this.host) {
+            if (uri.path.endsWith(".collab64")) {
+                content = new TextEncoder().encode(toBase64(content));
+            }
+            await vscode.workspace.fs.writeFile(uri, content);
+        }
+        else {
+            const edit = new vscode.WorkspaceEdit();
+            if (create) {
+                edit.createFile(uri);
+            }
+            const str = uri.path.endsWith(".collab64") ? toBase64(content) : new TextDecoder().decode(content);
+            edit.replace(uri, new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
+            state.autoSave = true;
+            const editPromise = vscode.workspace.applyEdit(edit);
+            const savePromise = new Promise<void>(resolve => state.saveResolve = resolve);
+            await editPromise;
+            state.autoSave = false;
+            await savePromise;
+        }
     }
 
 
@@ -437,13 +431,4 @@ class FileState {
     public continue: boolean = false;
     public autoSave: boolean = false;
     public saveResolve: ((value: void | PromiseLike<void>) => void) | null = null;
-}
-
-
-
-class FileContent {
-    public constructor(
-        public content: Uint8Array | null,
-        public modified: boolean
-    ) {}
 }

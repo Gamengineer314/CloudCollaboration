@@ -282,7 +282,7 @@ export class Project {
                         // Connect
                         log("Host connect");
                         Project.connectedWindow();
-                        Project._instance = new Project(true, new FileSynchronizer(), await LiveShare.get(), git);
+                        Project._instance = new Project(true, new FileSynchronizer(true), await LiveShare.get(), git);
                         Project._instance.hostConnect();
                     }
                     catch (error: any) {
@@ -323,8 +323,9 @@ export class Project {
             Project.connect();
         }
         this.liveShare.setCallbacks(undefined, showErrorWrap(Project.disconnect.bind(undefined, true)));
-        await this.fileSynchronizer.loadCollaboration();
-        await this.fileSynchronizer.startSync(true);
+        await vscode.workspace.fs.delete(collaborationFolder, { recursive: true });
+        await vscode.workspace.fs.createDirectory(collaborationFolder);
+        await this.fileSynchronizer.startSync();
         this.mustUpload = true;
         this.uploadLoop();
 
@@ -353,7 +354,7 @@ export class Project {
         try {
             // Connect
             log("Guest connect");
-            Project._instance = new Project(false, new FileSynchronizer(), await LiveShare.get(), undefined);
+            Project._instance = new Project(false, new FileSynchronizer(false), await LiveShare.get(), undefined);
             Project._instance.guestConnect();
         }
         catch (error: any) {
@@ -381,8 +382,9 @@ export class Project {
         }));
 
         // Connect
-        await this.fileSynchronizer.loadProject();
-        await this.fileSynchronizer.startSync(false);
+        await vscode.workspace.fs.delete(projectFolder, { recursive: true });
+        await vscode.workspace.fs.createDirectory(projectFolder);
+        await this.fileSynchronizer.startSync();
 
         // Default settings
         const configuration = vscode.workspace.getConfiguration();
