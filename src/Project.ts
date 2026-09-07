@@ -355,7 +355,7 @@ export class Project {
             // Connect
             log("Guest connect");
             Project._instance = new Project(false, new FileSynchronizer(false), await LiveShare.get(), undefined);
-            Project._instance.guestConnect();
+            await Project._instance.guestConnect();
         }
         catch (error: any) {
             logError(error.message);

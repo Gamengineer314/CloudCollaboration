@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
 import { Project } from "./Project";
-import { isBinary, toBase64, fromBase64 } from "./BinaryFiles";
 import {
     collaborationUri, collaborationName, inCollaboration, collaborationRecurListFolder,
     projectName, projectUri, projectRecurListFolder, toProjectName,
@@ -178,6 +177,7 @@ export class FileSynchronizer {
         state.collaborationModifying = true;
 
         // Modify project file while collaboration file is modified
+        const { isBinary } = await import('istextorbinary');
         do {
             state.continue = false;
 
@@ -189,7 +189,7 @@ export class FileSynchronizer {
                     log("File " + name);
                     content = await vscode.workspace.fs.readFile(uri);
                     if (collabName.endsWith(".collab64")) { // Binary file -> decode base64
-                        content = fromBase64(new TextDecoder().decode(content));
+                        content = new Uint8Array(Buffer.from(new TextDecoder().decode(content), "base64"));
                     }
                     log("Content " + content.length + " " + name);
                 }
@@ -225,7 +225,7 @@ export class FileSynchronizer {
                         if (collabName.endsWith(".collab64")) { // Binary file -> add to binary files
                             this.binaryFiles.add(name);
                         }
-                        else if (isBinary(content)) { // Shouldn't be binary
+                        else if (isBinary(name, Buffer.from(content))) { // Shouldn't be binary
                             log("Shouldn't be binary " + name);
                             vscode.window.showErrorMessage("Binary files must be added with the 'Upload Files' command", "Upload files")
                             .then(showErrorWrap(async (item: string | undefined) => {
@@ -281,6 +281,7 @@ export class FileSynchronizer {
         state.projectModifying = true;
 
         // Modify collaboration file while project file is modified
+        const { isBinary } = await import('istextorbinary');
         do {
             state.continue = false;
 
@@ -319,7 +320,7 @@ export class FileSynchronizer {
                     await vscode.workspace.fs.createDirectory(collaborationUri(collabName));
                 }
                 else {
-                    if (!collabName.endsWith(".collab64") && isBinary(content)) { // Binary file -> add to binary files and rename
+                    if (!collabName.endsWith(".collab64") && isBinary(name, Buffer.from(content))) { // Binary file -> add to binary files and rename
                         this.binaryFiles.add(name);
                         log("Delete collaboration file/directory " + name);
                         await this.deleteCollaborationFile(collaborationUri(collabName));
@@ -353,10 +354,10 @@ export class FileSynchronizer {
 
     private async writeCollaborationFile(uri: vscode.Uri, state: FileState, create: boolean) {
         let content = state.content!;
+        if (uri.path.endsWith(".collab64")) {
+            content = new TextEncoder().encode(Buffer.from(content).toString("base64"));
+        }
         if (this.host) {
-            if (uri.path.endsWith(".collab64")) {
-                content = new TextEncoder().encode(toBase64(content));
-            }
             await vscode.workspace.fs.writeFile(uri, content);
         }
         else {
@@ -364,8 +365,7 @@ export class FileSynchronizer {
             if (create) {
                 edit.createFile(uri);
             }
-            const str = uri.path.endsWith(".collab64") ? toBase64(content) : new TextDecoder().decode(content);
-            edit.replace(uri, new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
+            edit.replace(uri, new vscode.Range(0, 0, Number.MAX_VALUE, 0), new TextDecoder().decode(content));
             state.autoSave = true;
             const editPromise = vscode.workspace.applyEdit(edit);
             const savePromise = new Promise<void>(resolve => state.saveResolve = resolve);

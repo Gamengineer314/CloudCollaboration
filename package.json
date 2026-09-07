@@ -172,6 +172,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
+    "istextorbinary": "^9.5.0",
     "simple-git": "^3.36.0",
     "vsls": "^1.0.4753"
   },
