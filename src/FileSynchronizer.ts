@@ -270,7 +270,7 @@ export class FileSynchronizer {
 
         // Check if already modifying
         if (state.collaborationModifying) {
-            log("collaboration modifying " + name);
+            log("Collaboration modifying " + name);
             return;
         }
         if (state.projectModifying) {
@@ -361,8 +361,8 @@ export class FileSynchronizer {
         const editPromise = vscode.workspace.applyEdit(edit);
         const savePromise = new Promise<void>(resolve => state.saveResolve = resolve);
         await editPromise;
-        state.autoSave = false;
         await savePromise;
+        state.autoSave = false;
     }
 
 

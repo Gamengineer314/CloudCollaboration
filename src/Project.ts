@@ -268,7 +268,7 @@ export class Project {
                 const git = await Git.get();
                 await git.pull();
                 const url = await Project.getUrl();
-                let host = false;
+                let host = url === "";
                 if (!host) {
                     log("Url " + url);
                     if (!await LiveShare.checkSession(url)) {

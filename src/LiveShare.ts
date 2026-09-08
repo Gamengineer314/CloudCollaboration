@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import * as vlsl from "vsls/vscode";
+import * as vsls from "vsls/vscode";
 import { showErrorWrap, waitFor } from "./util";
 
 
@@ -10,7 +10,7 @@ export class LiveShare {
     private changePeerDisposable : vscode.Disposable | undefined = undefined;
     private changeSessionDisposable : vscode.Disposable | undefined = undefined;
 
-    private constructor(private liveShare: vlsl.LiveShare) {}
+    private constructor(private liveShare: vsls.LiveShare) {}
 
 
     /**
@@ -25,7 +25,7 @@ export class LiveShare {
      * @brief Get a LiveShare instance
     **/
     public static async get() : Promise<LiveShare> {
-        const liveShare = await vlsl.getApi("cloud-collaboration");
+        const liveShare = await vsls.getApi("cloud-collaboration");
         if (!liveShare) {
             throw new Error("LiveShare initialization failed : Live Share not available");
         }
@@ -44,9 +44,7 @@ export class LiveShare {
         this.changePeerDisposable = this.liveShare.onDidChangePeers(showErrorWrap(_ => {
             if (this.liveShare.session.id !== null) {
                 const oldIndex = this.userIndex;
-                this.userIndex = this.liveShare.peers
-                    .sort((p1, p2) => p1.peerNumber - p2.peerNumber)
-                    .findIndex(peer => peer.peerNumber === this.liveShare.session.peerNumber);
+                this.userIndex = this.getUserIndex();
                 if (oldIndex !== this.userIndex) {
                     onIndexChanged(this.userIndex);
                 }
@@ -69,6 +67,16 @@ export class LiveShare {
         this.changePeerDisposable?.dispose();
         this.changeSessionDisposable?.dispose();
     }
+
+
+    /**
+     * @brief Get the current user index
+    **/
+    private getUserIndex() : number {
+        return this.liveShare.peers
+            .sort((p1, p2) => p1.peerNumber - p2.peerNumber)
+            .findIndex(peer => peer.peerNumber === this.liveShare.session.peerNumber);
+    }
     
     
     /**
@@ -83,6 +91,7 @@ export class LiveShare {
             throw new Error("Failed to create Live Share session");
         }
         this.sessionId = this.liveShare.session.id;
+        this.userIndex = this.getUserIndex();
     }
 
 
@@ -112,6 +121,7 @@ export class LiveShare {
     public async waitForSession() : Promise<void> {
         await waitFor(() => this.liveShare.session.id !== null);
         this.sessionId = this.liveShare.session.id;
+        this.userIndex = this.getUserIndex();
     }
 
 

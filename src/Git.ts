@@ -1,4 +1,4 @@
-import { GitResponseError, simpleGit, SimpleGit } from "simple-git";
+import { GitError, simpleGit, SimpleGit } from "simple-git";
 import { context, currentFolder, storageFolder } from "./extension";
 
 
@@ -105,7 +105,7 @@ export class Git {
     public async pull() : Promise<void> {
         await this.git.fetch();
         const upstream = (await this.git.status()).tracking;
-        if (upstream) {
+        if (upstream && await this.branchExists(upstream)) {
             await this.git.reset(["--hard", upstream]);
         }
     }
@@ -120,12 +120,11 @@ export class Git {
             await this.git.push();
         }
         catch (error: any) {
-            if (error instanceof GitResponseError) {
-                const message: string = error.message;
-                if (message.includes("[rejected]")) {
-                    return true;
-                }
+            const message: string = error.message;
+            if (message.includes("[rejected]")) {
+                return true;
             }
+            throw error;
         }
         return false;
     }
@@ -149,4 +148,20 @@ export class Git {
             await this.git.commit(message);
         }
     }
+
+
+    /**
+     * @brief Check if a branch exists
+     * @param branch Branch name
+     * @returns Whether the branch exists
+    **/
+    private async branchExists(branch: string): Promise<boolean> {
+        try {
+            await this.git.raw(["rev-parse", "--verify", branch]);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
 }
