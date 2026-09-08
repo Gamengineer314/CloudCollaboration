@@ -26,6 +26,7 @@ export class FileSynchronizer {
      * @brief Start synchronization between the collaboration folder and the project folder
     **/
     public async startSync() : Promise<void> {
+        this.autoSaveCollaboration();
         if (this.host) {
             this.listenProject();
             await this.loadCollaboration();
@@ -36,7 +37,6 @@ export class FileSynchronizer {
             this.listenCollaboration2();
             await this.loadProject();
             this.listenProject();
-            this.autoSaveCollaboration();
         }
     }
 
@@ -321,9 +321,11 @@ export class FileSynchronizer {
                 }
                 else {
                     if (!collabName.endsWith(".collab64") && isBinary(name, Buffer.from(content))) { // Binary file -> add to binary files and rename
+                        if (!create) {
+                            log("Delete collaboration file/directory " + name);
+                            await this.deleteCollaborationFile(collaborationUri(collabName));
+                        }
                         this.binaryFiles.add(name);
-                        log("Delete collaboration file/directory " + name);
-                        await this.deleteCollaborationFile(collaborationUri(collabName));
                         collabName += ".collab64";
                         create = true;
                     }
@@ -342,37 +344,25 @@ export class FileSynchronizer {
     }
 
     private async deleteCollaborationFile(uri: vscode.Uri) {
-        if (this.host) {
-            await vscode.workspace.fs.delete(uri, { recursive: true });
-        }
-        else {
-            const edit = new vscode.WorkspaceEdit();
-            edit.deleteFile(uri, { recursive: true });
-            await vscode.workspace.applyEdit(edit);
-        }
+        const edit = new vscode.WorkspaceEdit();
+        edit.deleteFile(uri, { recursive: true });
+        await vscode.workspace.applyEdit(edit);
     }
 
     private async writeCollaborationFile(uri: vscode.Uri, state: FileState, create: boolean) {
-        let content = state.content!;
-        if (uri.path.endsWith(".collab64")) {
-            content = new TextEncoder().encode(Buffer.from(content).toString("base64"));
+        const content = state.content!;
+        const str = uri.path.endsWith(".collab64") ? Buffer.from(content).toString("base64") : new TextDecoder().decode(content);
+        const edit = new vscode.WorkspaceEdit();
+        if (create) {
+            edit.createFile(uri);
         }
-        if (this.host) {
-            await vscode.workspace.fs.writeFile(uri, content);
-        }
-        else {
-            const edit = new vscode.WorkspaceEdit();
-            if (create) {
-                edit.createFile(uri);
-            }
-            edit.replace(uri, new vscode.Range(0, 0, Number.MAX_VALUE, 0), new TextDecoder().decode(content));
-            state.autoSave = true;
-            const editPromise = vscode.workspace.applyEdit(edit);
-            const savePromise = new Promise<void>(resolve => state.saveResolve = resolve);
-            await editPromise;
-            state.autoSave = false;
-            await savePromise;
-        }
+        edit.replace(uri, new vscode.Range(0, 0, Number.MAX_VALUE, 0), str);
+        state.autoSave = true;
+        const editPromise = vscode.workspace.applyEdit(edit);
+        const savePromise = new Promise<void>(resolve => state.saveResolve = resolve);
+        await editPromise;
+        state.autoSave = false;
+        await savePromise;
     }
 
 
