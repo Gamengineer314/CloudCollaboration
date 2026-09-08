@@ -321,6 +321,7 @@ export class Project {
             await Project._disconnect();
             Project.connecting = false;
             Project.connect();
+            return;
         }
         this.liveShare.setCallbacks(undefined, showErrorWrap(Project.disconnect.bind(undefined, true)));
         await vscode.workspace.fs.delete(collaborationFolder, { recursive: true });

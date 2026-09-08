@@ -121,7 +121,7 @@ export class Git {
         }
         catch (error: any) {
             const message: string = error.message;
-            if (message.includes("[rejected]")) {
+            if (message.includes("rejected")) {
                 return true;
             }
             throw error;
