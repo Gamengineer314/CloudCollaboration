@@ -377,10 +377,7 @@ export class Project {
         this.liveShare.setCallbacks(showErrorWrap((index) => {
             windowState.userIndex = index;
             context.globalState.update("windowState", windowState);
-        }), showErrorWrap(() => {
-            windowState.disconnected = true;
-            context.globalState.update("windowState", windowState);
-        }));
+        }), undefined);
 
         // Connect
         await vscode.workspace.fs.delete(projectFolder, { recursive: true });

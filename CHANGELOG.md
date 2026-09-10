@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0
+- Replaced Google Drive with Git for synchronising project files
+- Removed the configuration and launch files, as they are unnecessary with Git
+- Removed LaTeX addon, as the LaTeX Workshop extension now supports Live Share
+- Other minor bug fixes and improvements
+
 ## 1.1.1
 - Improved detection of invalid sessions to reduce connection time
 - Added support for multiple windows if only one is connected to a project

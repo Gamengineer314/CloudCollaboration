@@ -1,30 +1,24 @@
 # Cloud Collaboration
 
-Cloud Collaboration offers real-time collaboration through the Live Share extension, with cloud storage on Google Drive.
+Cloud Collaboration offers real-time collaboration through the Live Share extension, with cloud storage using Git automatically.
 It allows any participant to start working on a project at any time without having to schedule sessions or synchronize files with your team.
 When connecting to a project, the extension automatically joins another participant's Live Share session, or creates a new one, with the latest version of the project files.
 
 ## Dependencies
 - The [Live Share](https://marketplace.visualstudio.com/items?itemName=MS-vsliveshare.vsliveshare) extension.
-- A Google account so the extension can access your Google Drive.
+- [Git](https://git-scm.com/).
+- A [GitHub](https://github.com/) account, or any other Git hosting service.
 
 ## Usage
-- Create or join a project : open an empty folder, right-click in the file explorer, click on _Cloud Collaboration: Create Project_ or _Cloud Collaboration: Join Project_. This will create a _.collablaunch_ file, which contains the information needed by the extension to connect to the project.
-- Connect to a project : open a _.collablaunch_ file and click on _Connect_. This will load the project and either join another participant's Live Share session or create a new one. You can then work on the project in the _Project_ folder. All files outside of this folder will be ignored.
-- Share the project : open the _.collabconfig_ file and invite collaborators by entering their e-mail address, or share the project globally and send them the link.
-- Open a terminal : press _Terminal_ -> _New Terminal_. This will open a new terminal in a folder containing a copy of the project updated in real time. Each participant can create their own terminal to interact with the project.
-- Disconnect : open the _.collablaunch_ file and click on _Disconnect_. This will exit the Live Share session, transfer it to another participant if you were the host, and unload the project.
-
-![Example](media/CloudCollaboration.gif)
-
-## Addons
-Cloud Collaboration adds specific features for certain types of project. You can define your project type if available in the _.collabconfig_ file. Currently, the extension only adds functionality to LaTeX projects, allowing any connected participant to compile the project if they have the _LaTeX Workshop_ extension and the _latexmk_ compiler.
+- Create a project on GitHub : [create a new repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-new-repository#creating-a-new-repository-from-the-web-ui), and [add your collaborators](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/repository-access-and-collaboration/inviting-collaborators-to-a-personal-repository#inviting-a-collaborator-to-a-personal-repository).
+- Join the project in VSCode : open an empty folder, right-click in the file explorer, and click on _Cloud Collaboration: Join Project_. Enter your [credentials](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#authenticating-with-the-command-line) to authenticate to GitHub, as well as your name and email to author Git commits. This will clone the repository in a hidden folder managed by the extension.
+- Connect to a project : right-click in the file explorer, and click on _Cloud Collaboration: Connect_. This will load the project and either join another participant's Live Share session or create a new one. You can then work on the project in the _Project_ folder. Any files outside this folder will be ignored.
+- Open a terminal : click on _Terminal: New Terminal_. This will open a new terminal in a folder containing a copy of the project updated in real-time. Each participant can create their own terminal to interact with the project.
+- Disconnect : right-click in the file explorer, and click on _Cloud Collaboration: Disconnect_. This will exit the Live Share session, transfer it to another participant if you were the host, and unload the project. Don't forget this step ! Closing the VSCode window or ending the Live Share session without disconnecting could cause data loss.
 
 ## Warning
-The extension is new and has not yet been extensively tested so it may still contain bugs. To prevent data loss, project files are regularly and automatically backed up. You can choose how many backups are maintained, how often they are added, and find the path where they are stored in the _.collabconfig_ file. If you find any bug, please report it on [GitHub](https://github.com/Gamengineer314/CloudCollaboration/issues).
+The extension hasn't yet been extensively tested, so it may still contain bugs. Furthermore, it's built on top of many workarounds to solve issues arising from the use of Live Share and Git instead of custom real-time collaboration and cloud storage tools. Therefore, there are still some missing features and known issues for which no solution has yet been found. If you encounter any bugs, please report them on [GitHub](https://github.com/Gamengineer314/CloudCollaboration/issues).
 
 ## Limitations
-Because it depends on Live Share and Google Drive, Cloud Collaboration has some limitations : 
-- Binary files : Live Share does not support binary files. Cloud Collaboration offers a limited support by encoding them as text files. These files will have a _.collab64_ extension. The unencoded version of the files are stored in a folder containing a copy of the project. By default, terminals you create when you are connected to a project open in this folder, so you can interact with both binary and text files from the terminal. This also means that you can't upload binary files by dragging them into the file explorer. To add binary files to a project, right-click in the file explorer and click on _Cloud Collaboration: Upload Files_.
-- Upload and download speed : project files are stored on the owner's Google Drive. They have to be downloaded when loading the project and uploaded regularly when someone is working on the project. This can be quite slow. You can reduce the time it takes by carefully configuring your project in the _.collabconfig_ file. Files that match the rules defined in the _Ignored Files_ setting are not uploaded to Google Drive. For example, you can ignore temporary or compilation output files, or large files that rarely change if you share them with your team by other means. If you don't need to access them from the terminal, you can also move these files out of the _Project_ folder.
-The rest of the files are uploaded or downloaded in two groups : static files and dynamic files. Files that match the rules defined in the _Static Files_ settings are static, the other files are dynamic. If a file in a group is modified, all files in that group will need to be uploaded or downloaded. You should therefore set files that rarely change as static and files that you often need to modify as dynamic.
+- Binary files : Live Share doesn't support binary files. Cloud Collaboration offers a limited support by encoding them as text files. These files will have a _.collab64_ extension. The unencoded version of the files are stored in a folder containing a copy of the project. By default, terminals that are created when connected to a project open in this folder, so you can interact with both binary and text files from the terminal. This also means that you can't upload binary files by dragging them into the file explorer. To add binary files to a project, right-click in the file explorer and click on _Cloud Collaboration: Upload Files_.
+- Git history : the goal of Cloud Collaboration is not to maintain a clean Git history. The extension simply regularly commits and pushes all changes to the project files, as well as the current Live Share URL when the host changes. This results in a large number of disorganised commits. It could also cause the .git folder to grow faster than it would if Git were used normally.
